@@ -35,26 +35,26 @@ const FONT    = "'Nunito','Segoe UI',sans-serif";
 const MONO    = "'JetBrains Mono','Courier New',monospace";
 
 const C = {
-  bg:         "#1E2025",
-  surface:    "#26292F",
-  surfaceAlt: "#2D3038",
-  border:     "#383C47",
-  ink:        "#F1F4FA",
-  inkMid:     "#A8B3C8",
-  inkLight:   "#6B7899",
+  bg:         "#F3F4F7",
+  surface:    "#FFFFFF",
+  surfaceAlt: "#F0F2F5",
+  border:     "#E2E5EA",
+  ink:        "#1E2025",
+  inkMid:     "#5B6472",
+  inkLight:   "#8992A3",
   teal:       TEAL,
   tealDk:     "#148A96",
   // 5S colours
-  s1:"#EF4444", s1b:"rgba(239,68,68,0.14)",  s1g:"linear-gradient(135deg,#EF4444,#F87171)",
-  s2:"#F59E0B", s2b:"rgba(245,158,11,0.14)", s2g:"linear-gradient(135deg,#F59E0B,#FCD34D)",
-  s3:"#10B981", s3b:"rgba(16,185,129,0.14)", s3g:"linear-gradient(135deg,#10B981,#34D399)",
-  s4:TEAL,      s4b:"rgba(27,155,170,0.14)", s4g:`linear-gradient(135deg,${TEAL},#22BDD0)`,
-  s5:"#8B5CF6", s5b:"rgba(139,92,246,0.14)", s5g:"linear-gradient(135deg,#8B5CF6,#A78BFA)",
+  s1:"#EF4444", s1b:"rgba(239,68,68,0.10)",  s1g:"linear-gradient(135deg,#EF4444,#F87171)",
+  s2:"#F59E0B", s2b:"rgba(245,158,11,0.10)", s2g:"linear-gradient(135deg,#F59E0B,#FCD34D)",
+  s3:"#10B981", s3b:"rgba(16,185,129,0.10)", s3g:"linear-gradient(135deg,#10B981,#34D399)",
+  s4:TEAL,      s4b:"rgba(27,155,170,0.10)", s4g:`linear-gradient(135deg,${TEAL},#22BDD0)`,
+  s5:"#8B5CF6", s5b:"rgba(139,92,246,0.10)", s5g:"linear-gradient(135deg,#8B5CF6,#A78BFA)",
   // status
-  open:    "#EF4444", openBg:    "rgba(239,68,68,0.14)",
-  prog:    "#F59E0B", progBg:    "rgba(245,158,11,0.14)",
-  closed:  "#10B981", closedBg:  "rgba(16,185,129,0.14)",
-  shadow:  "0 2px 12px rgba(0,0,0,0.4)",
+  open:    "#EF4444", openBg:    "rgba(239,68,68,0.10)",
+  prog:    "#F59E0B", progBg:    "rgba(245,158,11,0.10)",
+  closed:  "#10B981", closedBg:  "rgba(16,185,129,0.10)",
+  shadow:  "0 2px 12px rgba(30,32,37,0.08)",
 };
 
 // ── TEAM ──────────────────────────────────────────────────
@@ -68,7 +68,7 @@ const USERS = [
   { id:"manoj",    name:"Manoj Singh",           dept:"Corrugating",          role:"Supervisor", title:"Corrugating Supervisor",      initials:"MS", color:TEAL       },
   { id:"yougash",  name:"Yougashree Padayachee", dept:"Logistics",            role:"Manager",    title:"Logistics Manager",          initials:"YP", color:"#EC4899"  },
   { id:"michael",  name:"Michael Downes",        dept:"Innovation & Quality", role:"Auditor",    title:"Innovation/Quality Manager",  initials:"MD", color:TEAL       },
-  { id:"clifford", name:"Clifford Barnes",        dept:"Quality Assurance",    role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#6B7899"  },
+  { id:"clifford", name:"Clifford Barnes",        dept:"Quality Assurance",    role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#64748B"  },
   { id:"richard",  name:"Richard Downes",         dept:"Executive",            role:"Admin",      title:"Managing Director",           initials:"RD", color:SGREY      },
   { id:"jason",    name:"Jason Staats",           dept:"Finance",              role:"Admin",      title:"Financial Director",          initials:"JS", color:SGREY      },
 ];
@@ -142,7 +142,7 @@ const STDS = [
 ];
 
 const SEVERITY_BANDS = [
-  { min:0,  max:20,  label:"Observation",  color:"#6B7899", priority:"LOG",      dueMult:2.0 },
+  { min:0,  max:20,  label:"Observation",  color:"#64748B", priority:"LOG",      dueMult:2.0 },
   { min:21, max:40,  label:"Minor Finding",    color:TEAL,      priority:"LOW",      dueMult:1.5 },
   { min:41, max:60,  label:"Moderate Finding", color:"#F59E0B", priority:"MEDIUM",   dueMult:1.0 },
   { min:61, max:80,  label:"Major Finding",    color:"#EF4444", priority:"HIGH",     dueMult:0.5 },
@@ -381,7 +381,7 @@ function LoginScreen({ onLogin }) {
   const user = USERS.find(u => u.id === sel);
 
   return (
-    <div style={{ background:"#1C1E23", minHeight:"100vh", display:"flex",
+    <div style={{ background:"#EDEFF3", minHeight:"100vh", display:"flex",
       flexDirection:"column", alignItems:"center", justifyContent:"center",
       padding:"24px 20px", position:"relative", overflow:"hidden", fontFamily:FONT }}>
 
@@ -408,10 +408,10 @@ function LoginScreen({ onLogin }) {
         zIndex:2, animation:"slideUp 0.4s ease" }}>
 
         <div style={{ textAlign:"center", marginBottom:26 }}>
-          <div style={{ width:90, height:90, borderRadius:22, background:"#26292F",
+          <div style={{ width:90, height:90, borderRadius:22, background:"#FFFFFF",
             border:`2px solid ${TEAL}44`, margin:"0 auto 16px",
             display:"flex", alignItems:"center", justifyContent:"center",
-            boxShadow:"0 8px 32px rgba(0,0,0,0.6)" }}>
+            boxShadow:"0 8px 24px rgba(30,32,37,0.10)" }}>
             <svg viewBox="0 0 100 120" width="60" height="60">
               <text x="2" y="72" fontSize="85" fontWeight="900"
                 fontFamily="Arial Black,sans-serif" fill={SGREY}>S</text>
@@ -422,28 +422,28 @@ function LoginScreen({ onLogin }) {
           <div style={{ fontSize:11, color:TEAL, letterSpacing:6, fontWeight:900, marginBottom:6 }}>
             SHAVE &amp; GIBSON
           </div>
-          <div style={{ fontSize:21, fontWeight:900, color:"#F1F4FA", letterSpacing:2 }}>
+          <div style={{ fontSize:21, fontWeight:900, color:"#1E2025", letterSpacing:2 }}>
             OpsApp
           </div>
-          <div style={{ fontSize:10, color:"#5A6170", letterSpacing:3, marginTop:6 }}>
+          <div style={{ fontSize:10, color:"#8992A3", letterSpacing:3, marginTop:6 }}>
             INTEGRATED OPERATIONS PLATFORM
           </div>
         </div>
 
-        <div style={{ background:"#26292F", borderRadius:18, padding:"24px 22px",
-          border:"1px solid #383C47", boxShadow:"0 20px 60px rgba(0,0,0,0.6)" }}>
+        <div style={{ background:"#FFFFFF", borderRadius:18, padding:"24px 22px",
+          border:"1px solid #E2E5EA", boxShadow:"0 20px 50px rgba(30,32,37,0.10)" }}>
 
-          <div style={{ fontSize:11, fontWeight:800, color:"#7A8499",
+          <div style={{ fontSize:11, fontWeight:800, color:"#78808F",
             letterSpacing:3, marginBottom:12 }}>SELECT YOUR NAME</div>
 
-          <select style={{ width:"100%", padding:"12px", border:`2px solid ${sel?TEAL:"#383C47"}`,
+          <select style={{ width:"100%", padding:"12px", border:`2px solid ${sel?TEAL:"#E2E5EA"}`,
             borderRadius:12, fontSize:14, fontFamily:FONT,
-            color:sel?"#F1F4FA":"#5A6170", background:"#2D3038",
+            color:sel?"#1E2025":"#8992A3", background:"#F0F2F5",
             marginBottom:14, outline:"none" }}
             value={sel} onChange={e => setSel(e.target.value)}>
-            <option value="" style={{ color:"#5A6170", background:"#2D3038" }}>— Select your name —</option>
+            <option value="" style={{ color:"#8992A3", background:"#F0F2F5" }}>— Select your name —</option>
             {[...USERS].sort((a,b) => a.name.localeCompare(b.name)).map(u => (
-              <option key={u.id} value={u.id} style={{ color:"#F1F4FA", background:"#2D3038" }}>
+              <option key={u.id} value={u.id} style={{ color:"#1E2025", background:"#F0F2F5" }}>
                 {u.name}
               </option>
             ))}
@@ -455,16 +455,16 @@ function LoginScreen({ onLogin }) {
               display:"flex", alignItems:"center", gap:12, animation:"fadeUp 0.2s ease" }}>
               <Av txt={user.initials} color={user.color} size={44}/>
               <div>
-                <div style={{ fontSize:14, fontWeight:800, color:"#F1F4FA" }}>{user.name}</div>
+                <div style={{ fontSize:14, fontWeight:800, color:"#1E2025" }}>{user.name}</div>
                 <div style={{ fontSize:11, color:user.color, fontWeight:700, marginTop:2 }}>{user.title}</div>
-                <div style={{ fontSize:10, color:"#5A6170", marginTop:2 }}>{user.dept}</div>
+                <div style={{ fontSize:10, color:"#8992A3", marginTop:2 }}>{user.dept}</div>
               </div>
             </div>
           )}
 
           <button style={{ width:"100%", padding:"13px",
-            background:sel?`linear-gradient(135deg,${TEAL},${C.tealDk})`:"#383C47",
-            border:"none", borderRadius:12, color:sel?"#fff":"#5A6170",
+            background:sel?`linear-gradient(135deg,${TEAL},${C.tealDk})`:"#E2E5EA",
+            border:"none", borderRadius:12, color:sel?"#fff":"#8992A3",
             fontSize:14, fontWeight:800, letterSpacing:1, fontFamily:FONT,
             cursor:sel?"pointer":"default",
             boxShadow:sel?`0 6px 24px ${TEAL}44`:"none" }}
@@ -474,7 +474,7 @@ function LoginScreen({ onLogin }) {
         </div>
 
         <div style={{ textAlign:"center", marginTop:18, fontSize:9,
-          color:"#2C2F38", letterSpacing:3 }}>
+          color:"#C7CCD5", letterSpacing:3 }}>
           INTERNAL USE ONLY · SHAVE & GIBSON
         </div>
       </div>
@@ -1714,7 +1714,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
         width:"100%", maxWidth:480, background:C.surface,
         borderTop:`1px solid ${C.border}`, display:"flex",
         paddingBottom:"env(safe-area-inset-bottom,0)",
-        boxShadow:"0 -4px 24px rgba(0,0,0,0.4)" }}>
+        boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
         {[
           { id:"board",   icon:"⊞", label:"BOARD"  },
           { id:"raise",   icon:"⚠", label:"RAISE"  },
@@ -1757,7 +1757,7 @@ const GEMBA_CATS = [
   { key:"process",   label:"Process",           icon:"🔄", color:TEAL,      grad:`linear-gradient(135deg,${TEAL},#22BDD0)` },
   { key:"safety",    label:"Safety",            icon:"⚠️",  color:"#EF4444", grad:"linear-gradient(135deg,#EF4444,#F87171)" },
   { key:"quality",   label:"Quality",           icon:"✅", color:"#10B981", grad:"linear-gradient(135deg,#10B981,#34D399)" },
-  { key:"other",     label:"General",           icon:"📋", color:"#6B7899", grad:"linear-gradient(135deg,#6B7899,#94A3B8)" },
+  { key:"other",     label:"General",           icon:"📋", color:"#64748B", grad:"linear-gradient(135deg,#64748B,#94A3B8)" },
 ];
 
 const SEED_GEMBA = [
@@ -2290,13 +2290,13 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems }) {
   return (
     <div style={{background:C.bg, minHeight:"100vh", fontFamily:FONT}}>
       {/* Header */}
-      <div style={{background:`linear-gradient(160deg,#1C1E23,#26292F)`, padding:"28px 16px 20px", borderBottom:`1px solid ${C.border}`}}>
+      <div style={{background:`linear-gradient(160deg,#FFFFFF,#EDEFF3)`, padding:"28px 16px 20px", borderBottom:`1px solid ${C.border}`}}>
         <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
           <div>
             <div style={{fontSize:10, color:TEAL, letterSpacing:4, fontWeight:800, marginBottom:4}}>SHAVE &amp; GIBSON</div>
             <div style={{fontSize:24, fontWeight:900, color:C.ink, letterSpacing:1}}>OpsApp</div>
           </div>
-          <div style={{width:52, height:52, borderRadius:14, background:"#26292F", border:`2px solid ${TEAL}44`, display:"flex", alignItems:"center", justifyContent:"center"}}>
+          <div style={{width:52, height:52, borderRadius:14, background:"#FFFFFF", border:`2px solid ${TEAL}44`, display:"flex", alignItems:"center", justifyContent:"center"}}>
             <svg viewBox="0 0 100 120" width="34" height="34">
               <text x="2" y="72" fontSize="85" fontWeight="900" fontFamily="Arial Black,sans-serif" fill={SGREY}>S</text>
               <text x="34" y="114" fontSize="70" fontWeight="900" fontFamily="Arial Black,sans-serif" fill={TEAL}>G</text>
