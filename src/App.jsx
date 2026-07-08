@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import {
+  ArrowLeft, Home as HomeIcon, AlertTriangle, ArrowRight, FileText, Clock, RefreshCw,
+  Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
+} from "lucide-react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
 const SB_URL = "https://lxuokewkfxkjgptfcoeb.supabase.co";
@@ -339,6 +343,20 @@ function Av({ txt, color, size=36 }) {
   );
 }
 
+function ProgressRing({ pct, size=64, stroke=7, color=TEAL }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const val = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={stroke}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={c - (val/100)*c} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}/>
+    </svg>
+  );
+}
+
 function SHead({ label }) {
   return (
     <div style={{ padding:"16px 16px 8px", fontSize:10,
@@ -494,6 +512,8 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   // issues/setIssues passed from App root for shared badge counts
   const [selected,     setSelected]     = useState(null);
   const [filter,       setFilter]       = useState("ALL");
+  const [catFilter,    setCatFilter]    = useState("");
+  const [showCatMenu,  setShowCatMenu]  = useState(false);
   const [myOnly,       setMyOnly]       = useState(false);
   const [toast,        setToast]        = useState("");
   const [dbLoaded,     setDbLoaded]     = useState(false);
@@ -673,6 +693,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   const filtered = (() => {
     let l = myOnly ? myFindings : issues;
     if (filter !== "ALL") l = l.filter(i => i.status === filter);
+    if (catFilter) l = l.filter(i => i.scat?.key === catFilter);
     return l;
   })();
 
@@ -1504,60 +1525,62 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   return (
     <Shell toast={toast}>
       {/* Header */}
-      <div style={{ background:`linear-gradient(160deg,${TEAL} 0%,${C.tealDk} 100%)`,
-        padding:"20px 16px 18px", position:"relative", overflow:"hidden" }}>
-        <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120,
-          borderRadius:"50%", background:"rgba(255,255,255,0.07)", pointerEvents:"none" }}/>
-        <div style={{ position:"relative" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:38, height:38, borderRadius:10,
-                background:"rgba(255,255,255,0.18)", border:"1.5px solid rgba(255,255,255,0.3)",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:13, fontWeight:900, color:"#fff", fontFamily:MONO }}>5S</div>
-              <div>
-                <div style={{ fontSize:16, fontWeight:900, color:"#fff", letterSpacing:1 }}>
-                  S&amp;G Facility Compliance</div>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.6)", letterSpacing:2 }}>
-                  HOUSEKEEPING · MAY 2026</div>
-              </div>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              {onHome && (
-                <button onClick={onHome}
-                  style={{ background:"rgba(255,255,255,0.15)", border:"1.5px solid rgba(255,255,255,0.25)", borderRadius:8, color:"#fff", padding:"6px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-                  ⊞ Home
-                </button>
-              )}
-              <button onClick={() => setTab("profile")}
-                style={{ display:"flex", alignItems:"center", gap:7, background:"rgba(255,255,255,0.15)", border:"1.5px solid rgba(255,255,255,0.25)", borderRadius:20, padding:"5px 12px 5px 6px", cursor:"pointer" }}>
-                <Av txt={currentUser.initials} color="#fff" size={24}/>
-                <span style={{ fontSize:11, fontWeight:800, color:"#fff" }}>{currentUser.name.split(" ")[0]}</span>
-                {myOpenCt > 0 && (
-                  <div style={{ background:C.open, color:"#fff", fontSize:8, fontWeight:900, width:16, height:16, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>{myOpenCt}</div>
-                )}
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            {onHome && (
+              <button onClick={onHome} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+                border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", flexShrink:0 }}>
+                <ArrowLeft size={18} color={C.ink}/>
               </button>
+            )}
+            <div style={{ width:40, height:40, borderRadius:10, background:`${TEAL}14`,
+              border:`1.5px solid ${TEAL}55`, display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:12, fontWeight:900, color:TEAL, fontFamily:MONO, flexShrink:0 }}>5S</div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.ink, letterSpacing:0.2 }}>
+                S&amp;G Facility Compliance</div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>
+                HOUSEKEEPING · MAY 2026</div>
             </div>
           </div>
-          {/* Facility + my dept */}
-          <div style={{ display:"flex", gap:8 }}>
-            <div style={{ flex:1, background:"rgba(255,255,255,0.12)",
-              border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, padding:"9px 12px" }}>
-              <div style={{ fontSize:9, color:"rgba(255,255,255,0.6)", letterSpacing:2 }}>FACILITY</div>
-              <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>
-                {facilityAvg !== null ? `${facilityAvg}%` : "—"}</div>
-              <div style={{ fontSize:8, color:"rgba(255,255,255,0.5)" }}>
-                {scoredDepts.length}/{DEPARTMENTS.length} depts audited</div>
-            </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {onHome && (
+              <button onClick={onHome}
+                style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+                  border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+                  fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+                <HomeIcon size={14}/> Home
+              </button>
+            )}
+            <button onClick={() => setTab("profile")}
+              style={{ display:"flex", alignItems:"center", gap:7, background:C.surface,
+                border:`1px solid ${C.border}`, borderRadius:10, padding:"6px 12px 6px 6px", cursor:"pointer" }}>
+              <Av txt={currentUser.initials} color={currentUser.color} size={24}/>
+              <span style={{ fontSize:11, fontWeight:800, color:C.ink }}>{currentUser.name.split(" ")[0]}</span>
+              {myOpenCt > 0 && (
+                <div style={{ background:C.open, color:"#fff", fontSize:8, fontWeight:900, width:16, height:16, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>{myOpenCt}</div>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Facility compliance card */}
+        <div style={{ background:C.surfaceAlt, border:`1px solid ${C.border}`, borderRadius:14,
+          padding:"16px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2, fontWeight:800, marginBottom:6 }}>FACILITY COMPLIANCE</div>
+            <div style={{ fontSize:32, fontWeight:900, color:TEAL, lineHeight:1 }}>
+              {facilityAvg !== null ? `${facilityAvg}%` : "—"}</div>
+            <div style={{ fontSize:11, color:C.inkMid, marginTop:6 }}>
+              {scoredDepts.length}/{DEPARTMENTS.length} departments audited</div>
             {myDeptScore !== null && (
-              <div style={{ flex:1, background:"rgba(255,255,255,0.12)",
-                border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, padding:"9px 12px" }}>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.6)", letterSpacing:2 }}>MY DEPT</div>
-                <div style={{ fontSize:20, fontWeight:900, color:"#fff" }}>{myDeptScore}%</div>
-                <div style={{ fontSize:8, color:"rgba(255,255,255,0.5)" }}>{currentUser.dept}</div>
-              </div>
+              <div style={{ fontSize:10, color:C.inkLight, marginTop:3 }}>
+                Your dept ({currentUser.dept}): <strong style={{ color:C.inkMid }}>{myDeptScore}%</strong></div>
             )}
           </div>
+          <ProgressRing pct={facilityAvg} color={TEAL}/>
         </div>
       </div>
 
@@ -1568,116 +1591,157 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
           display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}
           onClick={() => { setMyOnly(true); setFilter("OPEN"); }}>
           <div style={{ width:34, height:34, borderRadius:9, background:C.open,
-            display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>⚠</div>
+            display:"flex", alignItems:"center", justifyContent:"center" }}><AlertTriangle size={16} color="#fff"/></div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:13, fontWeight:800, color:C.open }}>
               You have {myOpenCt} open Finding{myOpenCt>1?"s":""}</div>
             <div style={{ fontSize:11, color:C.inkMid, marginTop:2 }}>
               Tap to view your outstanding actions</div>
           </div>
-          <span style={{ color:C.open, fontSize:16 }}>→</span>
+          <ArrowRight size={16} color={C.open}/>
         </div>
       )}
 
       {/* Raise CTA */}
       <div style={{ padding:"12px 16px 0" }}>
-        <button style={{ width:"100%", background:`linear-gradient(135deg,${C.open},#F87171)`,
+        <button style={{ width:"100%", background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,
           border:"none", borderRadius:14, padding:"14px 16px",
           display:"flex", alignItems:"center", gap:12, cursor:"pointer",
-          boxShadow:`0 6px 24px ${C.open}33`, textAlign:"left" }}
+          boxShadow:`0 6px 24px ${TEAL}33`, textAlign:"left" }}
           onClick={() => setTab("raise")}>
           <div style={{ width:40, height:40, borderRadius:10, background:"rgba(255,255,255,0.2)",
-            display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>⚠</div>
+            display:"flex", alignItems:"center", justifyContent:"center" }}><AlertTriangle size={20} color="#fff"/></div>
           <div style={{ flex:1 }}>
             <div style={{ fontSize:14, fontWeight:900, color:"#fff", letterSpacing:1, fontFamily:FONT }}>
               RAISE FINDING</div>
             <div style={{ fontSize:10, color:"rgba(255,255,255,0.8)", marginTop:2 }}>
-              AI Standards Verification Engine · L1→L2→L3→L4</div>
+              AI Standards Verification Engine · L1 → L2 → L3 → L4</div>
           </div>
-          <span style={{ fontSize:18, color:"rgba(255,255,255,0.8)" }}>→</span>
+          <ArrowRight size={18} color="rgba(255,255,255,0.8)"/>
         </button>
       </div>
 
       {/* Stats */}
-      <div style={{ display:"flex", gap:8, padding:"10px 16px 0" }}>
+      <div style={{ display:"flex", margin:"12px 16px 0", background:C.surface,
+        border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
         {[
-          { label:"OPEN",        val:openCt,   col:C.open,   bg:C.openBg,   f:"OPEN"        },
-          { label:"IN PROGRESS", val:progCt,   col:C.prog,   bg:C.progBg,   f:"IN PROGRESS" },
-          { label:"CLOSED",      val:closedCt, col:C.closed, bg:C.closedBg, f:"CLOSED"      },
-        ].map(st => (
+          { label:"OPEN",        val:openCt,   Icon:FileText,  f:"OPEN"        },
+          { label:"IN PROGRESS", val:progCt,   Icon:Clock,     f:"IN PROGRESS" },
+          { label:"CLOSED",      val:closedCt, Icon:RefreshCw, f:"CLOSED"      },
+        ].map((st,i) => (
           <button key={st.label} onClick={() => { setFilter(filter===st.f?"ALL":st.f); setMyOnly(false); }}
-            style={{ flex:1, background:st.bg,
-              border:`1.5px solid ${filter===st.f&&!myOnly?st.col:C.border}`,
-              borderRadius:12, padding:"11px 8px", textAlign:"center", cursor:"pointer" }}>
-            <div style={{ fontSize:24, fontWeight:900, color:st.col }}>{st.val}</div>
-            <div style={{ fontSize:8, color:C.inkMid, letterSpacing:1, marginTop:3 }}>{st.label}</div>
+            style={{ flex:1, background:"none",
+              border:"none", borderLeft:i>0?`1px solid ${C.border}`:"none",
+              padding:"12px 6px", textAlign:"center", cursor:"pointer",
+              display:"flex", flexDirection:"column", alignItems:"center", gap:5,
+              opacity:filter===st.f&&!myOnly?1:0.85 }}>
+            <st.Icon size={16} color={filter===st.f&&!myOnly?TEAL:C.inkLight}/>
+            <div style={{ fontSize:20, fontWeight:900, color:C.ink }}>{st.val}</div>
+            <div style={{ fontSize:8, color:C.inkLight, letterSpacing:0.5 }}>{st.label}</div>
           </button>
         ))}
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display:"flex", padding:"10px 16px 0", gap:4,
-        borderBottom:`1px solid ${C.border}`, alignItems:"center" }}>
-        <button onClick={() => { setMyOnly(!myOnly); setFilter("ALL"); }}
-          style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px",
-            borderRadius:100, border:`1.5px solid ${myOnly?currentUser.color:C.border}`,
-            background:myOnly?`${currentUser.color}18`:"transparent",
-            cursor:"pointer", fontSize:9, fontWeight:800,
-            color:myOnly?currentUser.color:C.inkLight, flexShrink:0 }}>
-          <Av txt={currentUser.initials} color={currentUser.color} size={14}/>
-          MINE {myOpenCt>0 && (
-            <span style={{ background:C.open, color:"#fff", borderRadius:"50%",
-              width:13, height:13, display:"inline-flex",
-              alignItems:"center", justifyContent:"center", fontSize:8 }}>{myOpenCt}</span>
-          )}
-        </button>
-        {["ALL","OPEN","IN PROGRESS","CLOSED"].map(f => (
-          <button key={f} onClick={() => { setFilter(f); setMyOnly(false); }}
-            style={{ flex:1, background:"none", border:"none",
-              borderBottom:`2.5px solid ${filter===f&&!myOnly?C.teal:"transparent"}`,
-              color:filter===f&&!myOnly?C.teal:C.inkLight,
-              fontSize:8, fontWeight:800, letterSpacing:0.5,
-              padding:"6px 1px 9px", cursor:"pointer", fontFamily:FONT }}>
-            {f}
+      <div style={{ display:"flex", padding:"12px 16px 0", gap:8, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:14, flex:1, borderBottom:`1px solid ${C.border}` }}>
+          <button onClick={() => { setMyOnly(!myOnly); setFilter("ALL"); }}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none",
+              borderBottom:`2px solid ${myOnly?TEAL:"transparent"}`,
+              color:myOnly?TEAL:C.inkLight, fontSize:11, fontWeight:700,
+              padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+            <Av txt={currentUser.initials} color={currentUser.color} size={14}/>
+            Mine {myOpenCt>0 && (
+              <span style={{ background:C.open, color:"#fff", borderRadius:"50%",
+                width:14, height:14, display:"inline-flex",
+                alignItems:"center", justifyContent:"center", fontSize:8 }}>{myOpenCt}</span>
+            )}
           </button>
-        ))}
+          {[["ALL","All Findings"],["OPEN","Open"],["IN PROGRESS","In Progress"],["CLOSED","Closed"]].map(([f,label]) => (
+            <button key={f} onClick={() => { setFilter(f); setMyOnly(false); }}
+              style={{ background:"none", border:"none",
+                borderBottom:`2px solid ${filter===f&&!myOnly?TEAL:"transparent"}`,
+                color:filter===f&&!myOnly?TEAL:C.inkLight,
+                fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                padding:"0 0 8px", cursor:"pointer", fontFamily:FONT }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={() => setShowCatMenu(v=>!v)}
+            style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${catFilter?TEAL:C.border}`, borderRadius:9, padding:"7px 11px",
+              fontSize:11, fontWeight:700, color:catFilter?TEAL:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
+            <FilterIcon size={13}/> Filter
+          </button>
+          {showCatMenu && (
+            <div style={{ position:"absolute", top:"110%", right:0, background:C.surface,
+              border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 24px rgba(30,32,37,0.14)",
+              zIndex:20, minWidth:150, overflow:"hidden" }}>
+              <button onClick={()=>{setCatFilter("");setShowCatMenu(false);}}
+                style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:!catFilter?C.surfaceAlt:"none",
+                  border:"none", fontSize:11, fontWeight:700, color:C.ink, cursor:"pointer", fontFamily:FONT }}>
+                All categories
+              </button>
+              {SCATS.map(c=>(
+                <button key={c.key} onClick={()=>{setCatFilter(c.key);setShowCatMenu(false);}}
+                  style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:catFilter===c.key?C.surfaceAlt:"none",
+                    border:"none", fontSize:11, fontWeight:700, color:c.color, cursor:"pointer", fontFamily:FONT,
+                    display:"flex", alignItems:"center", gap:6 }}>
+                  {c.short} · {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Issue cards */}
-      <div style={{ padding:"10px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
         {filtered.map((nc,idx) => {
           const isMyFinding = nc.manager === currentUser.name;
           const band = nc.severityBand;
+          const statusStyle = nc.status==="CLOSED" ? { bg:C.closedBg, col:C.closed }
+            : nc.status==="IN PROGRESS" ? { bg:"#DBEAFE", col:"#2563EB" }
+            : { bg:C.openBg, col:C.open };
           return (
             <div key={nc.id} className="card" style={{ animationDelay:`${idx*0.07}s` }}>
               <button style={{ width:"100%", background:C.surface,
-                border:`1.5px solid ${isMyFinding&&nc.status==="OPEN"?`${C.open}66`:C.border}`,
-                borderRadius:14, padding:0, cursor:"pointer", textAlign:"left",
-                overflow:"hidden", fontFamily:FONT, display:"block",
-                boxShadow:isMyFinding&&nc.status==="OPEN"?`0 2px 16px ${C.open}22`:C.shadow }}
+                border:`1px solid ${isMyFinding&&nc.status==="OPEN"?`${C.open}55`:C.border}`,
+                borderRadius:14, padding:"14px", cursor:"pointer", textAlign:"left",
+                fontFamily:FONT, display:"flex", gap:12, boxShadow:C.shadow }}
                 onClick={() => setSelected(nc)}>
-                <div style={{ height:4, background:nc.scat.grad }}/>
-                <div style={{ padding:"12px 14px" }}>
-                  <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:9, flexWrap:"wrap" }}>
-                    <div style={{ background:nc.scat.bg, color:nc.scat.color,
-                      fontSize:10, fontWeight:800, padding:"2px 9px", borderRadius:100 }}>
-                      {nc.scat.icon} {nc.scat.short}</div>
-                    {band ? (
-                      <div style={{ background:`${band.color}20`, color:band.color,
+                <div style={{ width:44, height:44, borderRadius:10, background:nc.scat.bg,
+                  display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+                  flexShrink:0, gap:1 }}>
+                  <Folder size={16} color={nc.scat.color}/>
+                  <span style={{ fontSize:8, fontWeight:900, color:nc.scat.color, fontFamily:MONO }}>{nc.scat.short}</span>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", gap:5, alignItems:"center", marginBottom:8, flexWrap:"wrap" }}>
+                    {nc.severityScore != null && (
+                      <div style={{ background:C.surfaceAlt, color:C.inkMid,
                         fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>
-                        {nc.severityScore}/100 · {nc.isNCR ? "⚠ NCR · " : ""}{band.label}</div>
+                        {nc.severityScore}/100</div>
+                    )}
+                    {band ? (
+                      <div style={{ background:`${band.color}18`, color:band.color,
+                        fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100, textTransform:"uppercase" }}>
+                        {nc.isNCR ? "⚠ NCR · " : ""}{band.label}</div>
                     ) : nc.hasGoverningStandard===false ? (
-                      <div style={{ background:`${C.prog}20`, color:C.prog,
+                      <div style={{ background:`${C.prog}18`, color:C.prog,
                         fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>OBSERVATION</div>
                     ) : null}
-                    <div style={{ background:nc.status==="CLOSED"?C.closedBg:nc.status==="IN PROGRESS"?C.progBg:C.openBg,
-                      color:statColor(nc.status), fontSize:9, fontWeight:800,
+                    <div style={{ background:statusStyle.bg, color:statusStyle.col, fontSize:9, fontWeight:800,
                       padding:"2px 8px", borderRadius:100 }}>{nc.status}</div>
                     {isMyFinding && <div style={{ background:`${currentUser.color}18`,
                       color:currentUser.color, fontSize:8, fontWeight:800,
                       padding:"2px 7px", borderRadius:100 }}>MINE</div>}
-                    <div style={{ marginLeft:"auto", fontSize:10, color:C.inkLight, fontFamily:MONO }}>
-                      {nc.id}</div>
+                    <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+                      <span style={{ fontSize:10, color:C.inkLight, fontFamily:MONO }}>{nc.id}</span>
+                      <ArrowRight size={13} color={C.inkLight}/>
+                    </div>
                   </div>
                   <div style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:4 }}>{nc.dept}</div>
                   <div style={{ fontSize:12, color:C.inkMid, lineHeight:1.55, marginBottom:10 }}>{nc.desc}</div>
@@ -1716,21 +1780,21 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
         paddingBottom:"env(safe-area-inset-bottom,0)",
         boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
         {[
-          { id:"board",   icon:"⊞", label:"BOARD"  },
-          { id:"raise",   icon:"⚠", label:"RAISE"  },
-          { id:"audit",   icon:"📋", label:"AUDIT"  },
-          { id:"report",  icon:"◈", label:"REPORT" },
-          { id:"profile", icon:"👤", label:"ME"     },
+          { id:"board",   Icon:LayoutGrid,     label:"BOARD"  },
+          { id:"raise",   Icon:AlertTriangle,  label:"RAISE"  },
+          { id:"audit",   Icon:ClipboardList,  label:"AUDIT"  },
+          { id:"report",  Icon:Target,         label:"REPORT" },
+          { id:"profile", Icon:UserIcon,       label:"ME"     },
         ].map(n => (
           <button key={n.id}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
-              gap:2, padding:"11px 2px", background:"none", border:"none",
+              gap:3, padding:"11px 2px", background:"none", border:"none",
               color:tab===n.id?C.teal:C.inkLight, fontSize:8, letterSpacing:1,
               fontWeight:800, cursor:"pointer", fontFamily:FONT,
               borderTop:`2.5px solid ${tab===n.id?C.teal:"transparent"}`,
               position:"relative" }}
             onClick={() => setTab(n.id)}>
-            <span style={{ fontSize:18 }}>{n.icon}</span>
+            <n.Icon size={18}/>
             {n.label}
             {n.id==="profile" && myOpenCt > 0 && (
               <div style={{ position:"absolute", top:6, right:"calc(50% - 18px)",
