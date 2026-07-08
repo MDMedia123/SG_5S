@@ -2707,10 +2707,9 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
         <div style={{display:"flex", flexDirection:"column", gap:10}}>
           {modules.map(mod=>(
             <button key={mod.id} onClick={()=>mod.status==="LIVE"&&onModule(mod.id)}
-              style={{width:"100%", background:C.surface, border:`1px solid ${mod.status==="LIVE"?mod.color+"44":C.border}`, borderRadius:16, padding:0, cursor:mod.status==="LIVE"?"pointer":"default", textAlign:"left", overflow:"hidden", fontFamily:FONT, display:"block", boxShadow:mod.status==="LIVE"?`0 4px 20px ${mod.color}18`:C.shadow}}>
-              <div style={{height:4, background:mod.grad}}/>
+              style={{width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:0, cursor:mod.status==="LIVE"?"pointer":"default", textAlign:"left", overflow:"hidden", fontFamily:FONT, display:"block", boxShadow:C.shadow}}>
               <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
-                <div style={{width:46, height:46, borderRadius:12, background:mod.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0}}>
+                <div style={{width:46, height:46, borderRadius:"50%", background:C.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0}}>
                   {mod.icon}
                 </div>
                 <div style={{flex:1}}>
@@ -2722,10 +2721,10 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
                   {mod.badge>0 && (
                     <div style={{background:C.open, color:"#fff", fontSize:11, fontWeight:900, minWidth:22, height:22, borderRadius:11, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 6px"}}>{mod.badge}</div>
                   )}
-                  <div style={{fontSize:9, fontWeight:800, letterSpacing:1, color:mod.status==="LIVE"?mod.color:C.inkLight, background:mod.status==="LIVE"?`${mod.color}18`:C.surfaceAlt, padding:"3px 9px", borderRadius:100}}>
+                  <div style={{fontSize:9, fontWeight:800, letterSpacing:1, color:mod.status==="LIVE"?C.teal:C.inkLight, background:mod.status==="LIVE"?`${C.teal}18`:C.surfaceAlt, padding:"3px 9px", borderRadius:100}}>
                     {mod.status}
                   </div>
-                  {mod.status==="LIVE"&&<span style={{color:mod.color, fontSize:14}}>→</span>}
+                  {mod.status==="LIVE"&&<span style={{color:C.teal, fontSize:14}}>→</span>}
                 </div>
               </div>
             </button>
