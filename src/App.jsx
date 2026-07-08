@@ -2120,11 +2120,11 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
 // MAINTENANCE — JOB CARDS
 // ─────────────────────────────────────────────────────────
 const MAINT_ADMINS = [
-  { id:"piroshin", name:"Piroshin Chetty" },
   { id:"mike",     name:"Mike Van Der Westhuizen" },
   { id:"noel",     name:"Noel Chapman" },
   { id:"oscar",    name:"Oscar" },
 ];
+const MAINT_MACHINES = ["202","203","302","303","406","407","408","409","511","512","651","648","646","652","641","803","804","807","808","861","863","864","865","868"];
 const MAINT_ARTISANS = [
   { id:"wesley3", name:"Wesley Technician 3" },
 ];
@@ -2139,8 +2139,8 @@ const SEED_JOBCARDS = [
     machineNumber:"407",
     machineSection:"Print Units",
     operationalUnit:"Litho Print",
-    maintAdmin:"piroshin",
-    ccAdmins:["mike","noel","oscar"],
+    maintAdmin:"mike",
+    ccAdmins:["noel","oscar"],
     initiatedBy:"Litho Foreman",
     initiatedAt:"2026-01-30 16:00",
     priority:"Breakdown - Critical",
@@ -2160,8 +2160,8 @@ const SEED_JOBCARDS = [
     comments:[],
     timeline:[
       { time:"2026-01-30 16:00", actor:"Litho Foreman",    action:"Job card raised — 407 plate clamp",     type:"raise"  },
-      { time:"2026-01-30 16:05", actor:"Piroshin Chetty",  action:"Assigned to Wesley Technician 3",       type:"update" },
-      { time:"2026-02-28 00:45", actor:"Piroshin Chetty",  action:"Job card closed",                       type:"update" },
+      { time:"2026-01-30 16:05", actor:"Mike Van Der Westhuizen",  action:"Assigned to Wesley Technician 3",       type:"update" },
+      { time:"2026-02-28 00:45", actor:"Mike Van Der Westhuizen",  action:"Job card closed",                       type:"update" },
     ],
   },
 ];
@@ -2410,7 +2410,10 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
         <FLabel text="TITLE"/>
         <input style={{...sx.select,marginBottom:4}} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. 407 plate clamp"/>
         <FLabel text="MACHINE NUMBER"/>
-        <input style={{...sx.select,marginBottom:4}} value={machineNo} onChange={e=>setMachineNo(e.target.value)} placeholder="e.g. 407"/>
+        <select style={{...sx.select,marginBottom:4}} value={machineNo} onChange={e=>setMachineNo(e.target.value)}>
+          <option value="">— Select machine —</option>
+          {MAINT_MACHINES.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
         <FLabel text="MACHINE SECTION"/>
         <input style={{...sx.select,marginBottom:4}} value={section} onChange={e=>setSection(e.target.value)} placeholder="e.g. Print Units"/>
         <FLabel text="OPERATIONAL UNIT"/>
