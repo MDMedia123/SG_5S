@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
-const SB_URL = "https://cicfmhnelrbxjvctqwav.supabase.co";
-const SB_KEY = "sb_publishable_7NtHfRk07CXBVDwKNC5Zbg_8v7PEZRM";
+const SB_URL = "https://lxuokewkfxkjgptfcoeb.supabase.co";
+const SB_KEY = "sb_publishable_T7E8MsS9x1C-Nt0UFHoqTg_iFzbWgh_";
 
-async function sbFetch(table) {
+async function sbFetch(table, orderCol = "created_at") {
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/${table}?select=*&order=created_at.desc`, {
+    const r = await fetch(`${SB_URL}/rest/v1/${table}?select=*&order=${orderCol}.desc`, {
       headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
     });
     return await r.json();
@@ -511,7 +511,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
         }));
         setIssues(loaded);
       }
-      const audRows = await sbFetch("audits");
+      const audRows = await sbFetch("audits", "updated_at");
       if (Array.isArray(audRows) && audRows.length > 0) {
         const audMap = {};
         audRows.forEach(r => { audMap[r.dept] = r.data; });
