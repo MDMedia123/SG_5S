@@ -1797,6 +1797,13 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   // items/setItems passed from App root for shared badge counts
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const rows = await sbFetch("gemba");
+      if (Array.isArray(rows) && rows.length > 0) setItems(rows.map(r => r.data));
+    })();
+  }, []);
   // raise
   const [desc,    setDesc]    = useState("");
   const [area,    setArea]    = useState("");
@@ -2110,40 +2117,402 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
 }
 
 // ─────────────────────────────────────────────────────────
-// MAINTENANCE LANDING PAGE
+// MAINTENANCE — JOB CARDS
 // ─────────────────────────────────────────────────────────
-function MaintenancePage({ currentUser, onBack }) {
-  return (
-    <Shell toast="">
-      <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"20px 16px 24px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <button style={sx.backBtnW} onClick={onBack}>← Home</button>
+const MAINT_ADMINS = [
+  { id:"piroshin", name:"Piroshin Chetty" },
+  { id:"mike",     name:"Mike Van Der Westhuizen" },
+  { id:"noel",     name:"Noel Chapman" },
+  { id:"oscar",    name:"Oscar" },
+];
+const MAINT_ARTISANS = [
+  { id:"wesley3", name:"Wesley Technician 3" },
+];
+const MAINT_PRIORITIES = ["Breakdown - Critical","Breakdown - Major","Breakdown - Minor","Planned Maintenance"];
+const maintPriColor = p => p==="Breakdown - Critical"?"#9333EA":p==="Breakdown - Major"?C.open:p==="Breakdown - Minor"?C.prog:C.teal;
+const maintName = (list,id) => (list.find(x=>x.id===id)||{}).name || "—";
+
+const SEED_JOBCARDS = [
+  {
+    id:"004375",
+    title:"407 plate clamp",
+    machineNumber:"407",
+    machineSection:"Print Units",
+    operationalUnit:"Litho Print",
+    maintAdmin:"piroshin",
+    ccAdmins:["mike","noel","oscar"],
+    initiatedBy:"Litho Foreman",
+    initiatedAt:"2026-01-30 16:00",
+    priority:"Breakdown - Critical",
+    description:"please assist with 3rd unit plate clamp not releasing",
+    artisan:"wesley3",
+    targetDate:"2026-04-04T21:40",
+    downtime:true,
+    action:"Stripped out the plate clamp guard, found the leak, replace the pneumatic pip, reassembled and tested.",
+    repairsDone:true, toolsReturned:true, machineCleaned:true, noUnaccounted:true,
+    hoursWorked:"01:15",
+    actualCompletionDate:"2026-02-28T00:45",
+    effectivenessReview:"Done.",
+    managerReview:"CLOSED.",
+    status:"CLOSED",
+    raisedBy:"Michael Downes",
+    cost:0,
+    comments:[],
+    timeline:[
+      { time:"2026-01-30 16:00", actor:"Litho Foreman",    action:"Job card raised — 407 plate clamp",     type:"raise"  },
+      { time:"2026-01-30 16:05", actor:"Piroshin Chetty",  action:"Assigned to Wesley Technician 3",       type:"update" },
+      { time:"2026-02-28 00:45", actor:"Piroshin Chetty",  action:"Job card closed",                       type:"update" },
+    ],
+  },
+];
+
+function MaintenancePage({ currentUser, onBack, items, setItems }) {
+  const [tab,      setTab]      = useState("board");
+  const [selected, setSelected] = useState(null);
+  const [toast,    setToast]    = useState("");
+  const [dbLoaded, setDbLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const rows = await sbFetch("jobcards");
+      if (Array.isArray(rows) && rows.length > 0) setItems(rows.map(r => r.data));
+      setDbLoaded(true);
+    })();
+  }, []);
+
+  // raise
+  const [title,     setTitle]     = useState("");
+  const [machineNo, setMachineNo] = useState("");
+  const [section,   setSection]   = useState("");
+  const [unit,      setUnit]      = useState("");
+  const [admin,     setAdmin]     = useState("");
+  const [ccAdmins,  setCcAdmins]  = useState([]);
+  const [initBy,    setInitBy]    = useState("");
+  const [priority,  setPriority]  = useState("Breakdown - Critical");
+  const [desc,      setDesc]      = useState("");
+  const [saving,    setSaving]    = useState(false);
+
+  // work panel
+  const [artisan,    setArtisan]    = useState("");
+  const [targetDate, setTargetDate] = useState("");
+  const [downtime,   setDowntime]   = useState(null);
+  const [action,        setAction]        = useState("");
+  const [repairsDone,   setRepairsDone]   = useState(false);
+  const [toolsReturned, setToolsReturned] = useState(false);
+  const [machineCleaned,setMachineCleaned]= useState(false);
+  const [noUnaccounted, setNoUnaccounted] = useState(false);
+  const [hoursWorked,   setHoursWorked]   = useState("");
+  const [actualDate,    setActualDate]    = useState("");
+  const [effReview,     setEffReview]     = useState("");
+  const [mgrReview,      setMgrReview]     = useState("");
+  const [newComment,     setNewComment]    = useState("");
+
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
+  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?C.prog:C.open;
+  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?C.progBg:C.openBg;
+  const soon      = () => showToast("This tab isn't built yet — coming soon");
+
+  const persist = updated => {
+    setItems(p => p.map(i => i.id===updated.id ? updated : i));
+    if (selected?.id===updated.id) setSelected(updated);
+    sbUpsert("jobcards", { id:updated.id, data:updated, created_at:updated.initiatedAt });
+  };
+
+  const handleRaise = () => {
+    if (!title || !machineNo || !unit || !admin || !desc) { showToast("⚠ Please fill title, machine, unit, admin and description"); return; }
+    setSaving(true);
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const card = {
+      id: String(1000 + items.length + 1).padStart(6,"0"),
+      title, machineNumber:machineNo, machineSection:section, operationalUnit:unit,
+      maintAdmin:admin, ccAdmins, initiatedBy:initBy || currentUser.name,
+      initiatedAt:now, priority, description:desc,
+      artisan:"", targetDate:"", downtime:null, action:"",
+      repairsDone:false, toolsReturned:false, machineCleaned:false, noUnaccounted:false,
+      hoursWorked:"", actualCompletionDate:"", effectivenessReview:"", managerReview:"",
+      status:"OPEN", raisedBy:currentUser.name, cost:0, comments:[],
+      timeline:[{ time:now, actor:currentUser.name, action:`Job card raised — ${title}`, type:"raise" }],
+    };
+    setItems(p => [card, ...p]);
+    sbUpsert("jobcards", { id:card.id, data:card, created_at:now });
+    setSaving(false);
+    showToast(`✓ Job card ${card.id} raised`);
+    setTitle(""); setMachineNo(""); setSection(""); setUnit(""); setAdmin(""); setCcAdmins([]);
+    setInitBy(""); setPriority("Breakdown - Critical"); setDesc("");
+    setTimeout(() => setTab("board"), 500);
+  };
+
+  const startWork = () => {
+    if (!artisan) { showToast("⚠ Assign an artisan first"); return; }
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = {
+      ...selected, artisan, targetDate, downtime,
+      status:"IN PROGRESS",
+      timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:`Assigned to ${maintName(MAINT_ARTISANS,artisan)}`, type:"update" }],
+    };
+    persist(updated);
+    showToast("✓ Work started");
+  };
+
+  const closeCard = () => {
+    if (!mgrReview) { showToast("⚠ Add a manager review before closing"); return; }
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = {
+      ...selected, action, repairsDone, toolsReturned, machineCleaned, noUnaccounted,
+      hoursWorked, actualCompletionDate:actualDate, effectivenessReview:effReview, managerReview:mgrReview,
+      status:"CLOSED",
+      timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:"Job card closed", type:"update" }],
+    };
+    persist(updated);
+    showToast(`✓ ${selected.id} closed`);
+  };
+
+  const postComment = () => {
+    if (!newComment.trim()) return;
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = { ...selected, comments:[...(selected.comments||[]), { time:now, actor:currentUser.name, text:newComment.trim() }] };
+    persist(updated);
+    setNewComment("");
+  };
+
+  // ── Detail view ──────────────────────────────────────────
+  if (selected) {
+    const s = selected;
+    return (
+      <Shell toast={toast}>
+        <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"16px 16px 18px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <button style={sx.backBtnW} onClick={()=>setSelected(null)}>← Back</button>
+            <div style={{marginLeft:"auto",background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:"#fff",fontFamily:MONO}}>#{s.id}</div>
+            <div style={{background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"3px 12px",fontSize:11,fontWeight:800,color:"#fff"}}>R{(s.cost||0).toFixed(2)}</div>
+          </div>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.85)"}}>{s.machineNumber} · {s.operationalUnit}</div>
         </div>
-        <div style={{fontSize:22,fontWeight:900,color:"#fff",marginBottom:4}}>🔧 Maintenance</div>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>Equipment · Facilities · Planned & Reactive</div>
-      </div>
-      <div style={{padding:"24px 16px"}}>
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",textAlign:"center",marginBottom:16}}>
-          <div style={{fontSize:40,marginBottom:12}}>🔧</div>
-          <div style={{fontSize:16,fontWeight:900,color:C.ink,marginBottom:8}}>Coming Soon</div>
-          <div style={{fontSize:13,color:C.inkMid,lineHeight:1.6}}>The Maintenance module will allow you to log reactive jobs, schedule planned maintenance, assign to technicians and track completion with photo evidence.</div>
-        </div>
-        {[
-          {icon:"⚡",label:"Reactive Job Cards",desc:"Log breakdowns and urgent repairs"},
-          {icon:"📅",label:"Planned Maintenance",desc:"Schedule and track PM tasks"},
-          {icon:"📊",label:"Asset Register",desc:"Track equipment and service history"},
-          {icon:"👷",label:"Technician Assignments",desc:"Assign and monitor workloads"},
-        ].map(item=>(
-          <div key={item.label} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,opacity:0.6}}>
-            <span style={{fontSize:24}}>{item.icon}</span>
-            <div>
-              <div style={{fontSize:13,fontWeight:800,color:C.ink}}>{item.label}</div>
-              <div style={{fontSize:11,color:C.inkLight,marginTop:2}}>{item.desc}</div>
+
+        <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[
+            { label:"Status",   val:s.status, color:statColor(s.status) },
+            { label:"Priority", val:s.priority, color:maintPriColor(s.priority) },
+            { label:"Maintenance Admin", val:maintName(MAINT_ADMINS,s.maintAdmin), color:C.inkMid },
+            { label:"Initiated By", val:s.initiatedBy, color:C.inkMid },
+          ].map(m => (
+            <div key={m.label} style={{background:C.surfaceAlt,borderRadius:10,padding:"9px 12px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:9,color:C.inkLight,letterSpacing:2,marginBottom:2}}>{m.label}</div>
+              <div style={{fontSize:12,fontWeight:800,color:m.color}}>{m.val}</div>
             </div>
-            <div style={{marginLeft:"auto",fontSize:10,color:C.inkLight,background:C.surfaceAlt,padding:"3px 10px",borderRadius:100}}>PLANNED</div>
+          ))}
+        </div>
+
+        <div style={{margin:"0 16px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
+          <div style={{fontSize:10,fontWeight:800,color:C.inkLight,letterSpacing:2,marginBottom:6}}>MAINTENANCE DESCRIPTION</div>
+          <p style={{fontSize:12,color:C.ink,lineHeight:1.6,margin:0}}>{s.description}</p>
+        </div>
+
+        {/* Tabs — Comments live, rest stubbed */}
+        <div style={{display:"flex",gap:14,padding:"0 16px",borderBottom:`1px solid ${C.border}`,marginBottom:14,overflowX:"auto"}}>
+          {["Comments","5 Why's","Costs","Documents","Audit","Additional Fields"].map(t=>(
+            <div key={t} onClick={()=> t!=="Comments" && soon()} style={{padding:"8px 2px",fontSize:12,fontWeight:700,color:t==="Comments"?TEAL:C.inkLight,borderBottom:t==="Comments"?`2px solid ${TEAL}`:"2px solid transparent",cursor:"pointer",whiteSpace:"nowrap"}}>{t}</div>
+          ))}
+        </div>
+
+        <div style={{padding:"0 16px 12px"}}>
+          <textarea style={{...sx.textarea,marginBottom:8}} rows={2} placeholder="New comment…" value={newComment} onChange={e=>setNewComment(e.target.value)}/>
+          <button style={{...sx.solidBtn,width:"100%",background:TEAL,flex:"none"}} onClick={postComment}>Post Comment</button>
+          <div style={{marginTop:12}}>
+            {(s.comments||[]).length===0 && <div style={{fontSize:12,color:C.inkLight,textAlign:"center",padding:"10px 0"}}>No comments yet</div>}
+            {(s.comments||[]).map((c,i)=>(
+              <div key={i} style={{background:C.surfaceAlt,borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.ink}}>{c.actor}</div>
+                <div style={{fontSize:12,color:C.inkMid,marginTop:2,lineHeight:1.5}}>{c.text}</div>
+                <div style={{fontSize:9,color:C.inkLight,marginTop:4,fontFamily:MONO}}>{c.time}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Work panel */}
+        {s.status==="OPEN" && (currentUser.role==="Admin" || currentUser.role==="Manager" || MAINT_ADMINS.some(a=>a.id===s.maintAdmin)) && (
+          <div style={{padding:"0 16px 28px"}}>
+            <SHead label="ASSIGN & START WORK"/>
+            <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:14}}>
+              <FLabel text="ARTISAN"/>
+              <select style={{...sx.select,marginBottom:10}} value={artisan} onChange={e=>setArtisan(e.target.value)}>
+                <option value="">— Select artisan —</option>
+                {MAINT_ARTISANS.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <FLabel text="TARGET COMPLETION DATE"/>
+              <input type="datetime-local" style={{...sx.select,marginBottom:10}} value={targetDate} onChange={e=>setTargetDate(e.target.value)}/>
+              <FLabel text="MACHINE DOWNTIME"/>
+              <div style={{display:"flex",gap:8,marginBottom:12}}>
+                {[["Yes",true],["No",false]].map(([lbl,val])=>(
+                  <button key={lbl} onClick={()=>setDowntime(val)} style={{flex:1,padding:"9px 4px",borderRadius:9,border:`1.5px solid ${C.teal}`,background:downtime===val?C.teal:"transparent",color:downtime===val?"#fff":C.teal,fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>{lbl}</button>
+                ))}
+              </div>
+              <button style={{...sx.solidBtn,width:"100%",background:`linear-gradient(135deg,${C.prog},#FCD34D)`}} onClick={startWork}>Assign & Start Work</button>
+            </div>
+          </div>
+        )}
+
+        {s.status==="IN PROGRESS" && (
+          <div style={{padding:"0 16px 28px"}}>
+            <SHead label="CLOSE OUT JOB CARD"/>
+            <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:14}}>
+              <FLabel text="MAINTENANCE ACTION"/>
+              <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={action} onChange={e=>setAction(e.target.value)} placeholder="Describe the repair carried out…"/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                {[
+                  ["Maintenance/Repairs done",repairsDone,setRepairsDone],
+                  ["All tools & Spares returned",toolsReturned,setToolsReturned],
+                  ["Machine Cleaned",machineCleaned,setMachineCleaned],
+                  ["No unaccounted spares or tools",noUnaccounted,setNoUnaccounted],
+                ].map(([lbl,val,set])=>(
+                  <label key={lbl} style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.inkMid,cursor:"pointer"}}>
+                    <input type="checkbox" checked={val} onChange={e=>set(e.target.checked)}/> {lbl}
+                  </label>
+                ))}
+              </div>
+              <FLabel text="ARTISAN HOURS WORKED"/>
+              <input style={{...sx.select,marginBottom:10}} placeholder="e.g. 01:15" value={hoursWorked} onChange={e=>setHoursWorked(e.target.value)}/>
+              <FLabel text="ACTUAL COMPLETION DATE"/>
+              <input type="datetime-local" style={{...sx.select,marginBottom:10}} value={actualDate} onChange={e=>setActualDate(e.target.value)}/>
+              <FLabel text="JOB CARD EFFECTIVENESS REVIEW"/>
+              <textarea style={{...sx.textarea,marginBottom:10}} rows={2} value={effReview} onChange={e=>setEffReview(e.target.value)} placeholder="Maintenance admin review…"/>
+              <FLabel text="MAINTENANCE MANAGER REVIEW"/>
+              <textarea style={{...sx.textarea,marginBottom:12}} rows={2} value={mgrReview} onChange={e=>setMgrReview(e.target.value)} placeholder="Required to close the job card…"/>
+              <button style={{...sx.solidBtn,width:"100%",background:`linear-gradient(135deg,${C.closed},#34D399)`}} onClick={closeCard}>Close Job Card</button>
+            </div>
+          </div>
+        )}
+
+        {s.status==="CLOSED" && (
+          <div style={{margin:"0 16px 28px",background:C.closedBg,border:`1px solid ${C.closed}44`,borderRadius:12,padding:14}}>
+            <div style={{fontSize:11,fontWeight:800,color:C.closed,letterSpacing:2,marginBottom:8}}>✓ JOB CARD CLOSED</div>
+            {s.action && <div style={{fontSize:12,color:C.ink,lineHeight:1.6,marginBottom:8}}>{s.action}</div>}
+            <div style={{fontSize:11,color:C.inkMid}}>Artisan: {maintName(MAINT_ARTISANS,s.artisan)} · Hours: {s.hoursWorked||"—"}</div>
+            {s.managerReview && <div style={{fontSize:11,color:C.inkMid,marginTop:4}}>Manager review: {s.managerReview}</div>}
+          </div>
+        )}
+      </Shell>
+    );
+  }
+
+  // ── Raise view ───────────────────────────────────────────
+  if (tab==="raise") return (
+    <Shell toast={toast}>
+      <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"14px 16px 16px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button style={sx.backBtnW} onClick={()=>setTab("board")}>← Back</button>
+          <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>NEW JOB CARD</div>
+        </div>
+      </div>
+      <div style={{padding:"14px 16px"}}>
+        <FLabel text="TITLE"/>
+        <input style={{...sx.select,marginBottom:4}} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. 407 plate clamp"/>
+        <FLabel text="MACHINE NUMBER"/>
+        <input style={{...sx.select,marginBottom:4}} value={machineNo} onChange={e=>setMachineNo(e.target.value)} placeholder="e.g. 407"/>
+        <FLabel text="MACHINE SECTION"/>
+        <input style={{...sx.select,marginBottom:4}} value={section} onChange={e=>setSection(e.target.value)} placeholder="e.g. Print Units"/>
+        <FLabel text="OPERATIONAL UNIT"/>
+        <select style={{...sx.select,marginBottom:4}} value={unit} onChange={e=>setUnit(e.target.value)}>
+          <option value="">— Select unit —</option>
+          {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+        </select>
+        <FLabel text="MAINTENANCE ADMIN"/>
+        <select style={{...sx.select,marginBottom:4}} value={admin} onChange={e=>setAdmin(e.target.value)}>
+          <option value="">— Select admin —</option>
+          {MAINT_ADMINS.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+        <FLabel text="ADDITIONAL ADMINS (CC)"/>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
+          {MAINT_ADMINS.filter(a=>a.id!==admin).map(a=>(
+            <label key={a.id} style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:C.inkMid,background:C.surfaceAlt,border:`1px solid ${C.border}`,borderRadius:100,padding:"4px 10px",cursor:"pointer"}}>
+              <input type="checkbox" checked={ccAdmins.includes(a.id)} onChange={e=>setCcAdmins(p=> e.target.checked ? [...p,a.id] : p.filter(x=>x!==a.id))}/> {a.name}
+            </label>
+          ))}
+        </div>
+        <FLabel text="INITIATED BY"/>
+        <input style={{...sx.select,marginBottom:4}} value={initBy} onChange={e=>setInitBy(e.target.value)} placeholder={currentUser.name}/>
+        <FLabel text="PRIORITY"/>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+          {MAINT_PRIORITIES.map(p=>(
+            <button key={p} onClick={()=>setPriority(p)} style={{flex:"1 1 45%",padding:"9px 4px",borderRadius:9,border:`1.5px solid ${maintPriColor(p)}`,background:priority===p?maintPriColor(p):"transparent",color:priority===p?"#fff":maintPriColor(p),fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>{p}</button>
+          ))}
+        </div>
+        <FLabel text="MAINTENANCE DESCRIPTION"/>
+        <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the fault or work required…"/>
+        <button style={{width:"100%",padding:"14px",background:title&&machineNo&&unit&&admin&&desc?`linear-gradient(135deg,#F59E0B,#D97706)`:C.surfaceAlt,border:"none",borderRadius:11,color:title&&machineNo&&unit&&admin&&desc?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
+          onClick={handleRaise} disabled={saving}>
+          🔧 Raise Job Card
+        </button>
+      </div>
+    </Shell>
+  );
+
+  // ── Board ────────────────────────────────────────────────
+  const openCt   = items.filter(i=>i.status==="OPEN").length;
+  const progCt   = items.filter(i=>i.status==="IN PROGRESS").length;
+  const closedCt = items.filter(i=>i.status==="CLOSED").length;
+  return (
+    <Shell toast={toast}>
+      <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"20px 16px 18px"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button style={sx.backBtnW} onClick={onBack}>← Home</button>
+            <div>
+              <div style={{fontSize:16,fontWeight:900,color:"#fff",letterSpacing:1}}>Maintenance</div>
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>JOB CARDS</div>
+            </div>
+          </div>
+          <div style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
+            <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{openCt}</div>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.6)"}}>OPEN</div>
+          </div>
+        </div>
+        <button style={{width:"100%",background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}} onClick={()=>setTab("raise")}>
+          <span style={{fontSize:20}}>➕</span>
+          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>NEW JOB CARD</div><div style={{fontSize:10,color:"rgba(255,255,255,0.7)",marginTop:2}}>Machine · Priority · Assign admin</div></div>
+          <span style={{marginLeft:"auto",color:"rgba(255,255,255,0.8)",fontSize:16}}>→</span>
+        </button>
+      </div>
+      <div style={{display:"flex",gap:8,padding:"10px 16px 0"}}>
+        {[{label:"OPEN",val:openCt,col:C.open,bg:C.openBg},{label:"IN PROGRESS",val:progCt,col:C.prog,bg:C.progBg},{label:"CLOSED",val:closedCt,col:C.closed,bg:C.closedBg}].map(st=>(
+          <div key={st.label} style={{flex:1,background:st.bg,border:`1px solid ${st.col}44`,borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
+            <div style={{fontSize:22,fontWeight:900,color:st.col}}>{st.val}</div>
+            <div style={{fontSize:7,color:C.inkMid,letterSpacing:1,marginTop:3}}>{st.label}</div>
           </div>
         ))}
       </div>
+      <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {items.map((item,idx)=>(
+          <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
+            <button style={{width:"100%",background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:14,padding:0,cursor:"pointer",textAlign:"left",overflow:"hidden",fontFamily:FONT,display:"block",boxShadow:C.shadow}} onClick={()=>{
+              setSelected(item);
+              setArtisan(item.artisan||""); setTargetDate(item.targetDate||""); setDowntime(item.downtime);
+              setAction(item.action||""); setRepairsDone(!!item.repairsDone); setToolsReturned(!!item.toolsReturned);
+              setMachineCleaned(!!item.machineCleaned); setNoUnaccounted(!!item.noUnaccounted);
+              setHoursWorked(item.hoursWorked||""); setActualDate(item.actualCompletionDate||"");
+              setEffReview(item.effectivenessReview||""); setMgrReview(item.managerReview||"");
+            }}>
+              <div style={{height:4,background:`linear-gradient(135deg,${maintPriColor(item.priority)},${maintPriColor(item.priority)}aa)`}}/>
+              <div style={{padding:"12px 14px"}}>
+                <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                  <div style={{background:`${maintPriColor(item.priority)}22`,color:maintPriColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
+                  <div style={{background:statBg(item.status),color:statColor(item.status),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.status}</div>
+                  <div style={{marginLeft:"auto",fontSize:10,color:C.inkLight,fontFamily:MONO}}>#{item.id}</div>
+                </div>
+                <div style={{fontSize:13,fontWeight:800,color:C.ink,marginBottom:4}}>{item.title}</div>
+                <div style={{fontSize:12,color:C.inkMid,lineHeight:1.55,marginBottom:8}}>{item.description}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:11,color:C.inkMid}}>{item.machineNumber} · {item.operationalUnit}</span>
+                  <span style={{fontSize:10,color:C.inkLight}}>{maintName(MAINT_ADMINS,item.maintAdmin)}</span>
+                </div>
+              </div>
+            </button>
+          </div>
+        ))}
+      </div>
+      {items.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:40}}>🔧</div><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No job cards yet</div></div>}
     </Shell>
   );
 }
@@ -2190,7 +2559,7 @@ function QualityDeskPage({ currentUser, onBack }) {
 // ─────────────────────────────────────────────────────────
 // FPA HOME SCREEN — S&G OpsApp
 // ─────────────────────────────────────────────────────────
-function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems }) {
+function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards }) {
   const [showMyLog, setShowMyLog] = useState(false);
 
   const now  = new Date();
@@ -2200,6 +2569,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems }) {
   // Count open items per module for this user
   const my5sOpen    = (issues    ||[]).filter(i => i.manager===currentUser.name && i.status==="OPEN").length;
   const myGembaOpen = (gembaItems||[]).filter(i => i.owner  ===currentUser.name && i.status==="OPEN").length;
+  const myMaintOpen = (jobCards  ||[]).filter(i => i.maintAdmin && MAINT_ADMINS.find(a=>a.id===i.maintAdmin)?.name===currentUser.name && i.status!=="CLOSED").length;
   const myTotalOpen = my5sOpen + myGembaOpen;
 
   // All my open items combined for My Log
@@ -2209,7 +2579,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems }) {
   const modules = [
     { id:"5s",          icon:"🏭", label:"5S Housekeeping", desc:"Audits · Findings · Compliance scoring",         grad:`linear-gradient(135deg,${TEAL},${TEAL}bb)`, color:TEAL,      status:"LIVE",        badge:my5sOpen    },
     { id:"gemba",       icon:"🚶", label:"Gemba Walks",      desc:"Floor observations · Action tracking",       grad:"linear-gradient(135deg,#8B5CF6,#6D28D9)",   color:"#8B5CF6",  status:"LIVE",        badge:myGembaOpen },
-    { id:"maintenance", icon:"🔧", label:"Maintenance",       desc:"Job cards · Planned maintenance",            grad:"linear-gradient(135deg,#F59E0B,#D97706)",   color:"#F59E0B",  status:"COMING SOON", badge:0           },
+    { id:"maintenance", icon:"🔧", label:"Maintenance",       desc:"Job cards · Planned maintenance",            grad:"linear-gradient(135deg,#F59E0B,#D97706)",   color:"#F59E0B",  status:"LIVE",        badge:myMaintOpen },
     { id:"quality",     icon:"✅", label:"Quality Desk",      desc:"Complaints · Holds · CAPA",                 grad:"linear-gradient(135deg,#10B981,#059669)",   color:"#10B981",  status:"COMING SOON", badge:0           },
   ];
 
@@ -2379,6 +2749,7 @@ export default function App() {
   const [module,       setModule]       = useState(null);
   const [issues,       setIssues]       = useState(SEED_ISSUES);
   const [gembaItems,   setGembaItems]   = useState(SEED_GEMBA);
+  const [jobCards,     setJobCards]     = useState(SEED_JOBCARDS);
 
   if (!currentUser) return <LoginScreen onLogin={u => { setCurrentUser(u); setModule(null); }}/>;
 
@@ -2394,7 +2765,7 @@ export default function App() {
     />
   );
   if (module === "gemba")       return <GembaModule currentUser={currentUser} onBack={()=>setModule(null)} items={gembaItems} setItems={setGembaItems}/>;
-  if (module === "maintenance") return <MaintenancePage currentUser={currentUser} onBack={()=>setModule(null)}/>;
+  if (module === "maintenance") return <MaintenancePage currentUser={currentUser} onBack={()=>setModule(null)} items={jobCards} setItems={setJobCards}/>;
   if (module === "quality")     return <QualityDeskPage currentUser={currentUser} onBack={()=>setModule(null)}/>;
 
   return (
@@ -2404,6 +2775,7 @@ export default function App() {
       onModule={setModule}
       issues={issues}
       gembaItems={gembaItems}
+      jobCards={jobCards}
     />
   );
 }
