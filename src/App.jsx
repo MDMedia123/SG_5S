@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, Home as HomeIcon, AlertTriangle, ArrowRight, FileText, Clock, RefreshCw,
   Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
-  Sparkles, Camera, Paperclip, Footprints, Wrench,
+  Sparkles, Camera, Paperclip, Footprints, Wrench, ClipboardCheck, PersonStanding, ShieldCheck,
 } from "lucide-react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
@@ -2846,10 +2846,10 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   const myGembaItems = (gembaItems||[]).filter(i => i.owner  ===currentUser.name && i.status!=="CLOSED");
 
   const modules = [
-    { id:"5s",          icon:"🏭", label:"5S Housekeeping", desc:"Audits · Findings · Compliance scoring",         grad:`linear-gradient(135deg,${TEAL},${TEAL}bb)`, color:TEAL,      status:"LIVE",        badge:my5sOpen    },
-    { id:"gemba",       icon:"🚶", label:"Gemba Walks",      desc:"Floor observations · Action tracking",       grad:"linear-gradient(135deg,#8B5CF6,#6D28D9)",   color:"#8B5CF6",  status:"LIVE",        badge:myGembaOpen },
-    { id:"maintenance", icon:"🔧", label:"Maintenance",       desc:"Job cards · Planned maintenance",            grad:`linear-gradient(135deg,${TEAL},${C.tealDk})`,   color:TEAL,  status:"LIVE",        badge:myMaintOpen },
-    { id:"quality",     icon:"✅", label:"Quality Desk",      desc:"Complaints · Holds · CAPA",                 grad:"linear-gradient(135deg,#10B981,#059669)",   color:"#10B981",  status:"COMING SOON", badge:0           },
+    { id:"5s",          Icon:ClipboardCheck,  label:"5S Housekeeping", desc:"Audits · Findings · Compliance scoring", color:TEAL,      status:"LIVE",        badge:my5sOpen    },
+    { id:"gemba",       Icon:PersonStanding,  label:"Gemba Walks",     desc:"Floor observations · Action tracking",   color:"#8B5CF6", status:"LIVE",        badge:myGembaOpen },
+    { id:"maintenance", Icon:Wrench,          label:"Maintenance",     desc:"Job cards · Planned maintenance",         color:"#F59E0B", status:"LIVE",        badge:myMaintOpen },
+    { id:"quality",     Icon:ShieldCheck,     label:"Quality Desk",    desc:"Complaints · Holds · CAPA",               color:"#10B981", status:"COMING SOON", badge:0           },
   ];
 
   // MY LOG overlay
@@ -2973,13 +2973,13 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
         <div style={{display:"flex", flexDirection:"column", gap:10}}>
           {modules.map(mod=>(
             <button key={mod.id} onClick={()=>mod.status==="LIVE"&&onModule(mod.id)}
-              style={{width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:0, cursor:mod.status==="LIVE"?"pointer":"default", textAlign:"left", overflow:"hidden", fontFamily:FONT, display:"block", boxShadow:C.shadow}}>
+              style={{width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderLeft:`4px solid ${mod.color}`, borderRadius:16, padding:0, cursor:mod.status==="LIVE"?"pointer":"default", textAlign:"left", overflow:"hidden", fontFamily:FONT, display:"block", boxShadow:C.shadow}}>
               <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
-                <div style={{width:46, height:46, borderRadius:"50%", background:C.surfaceAlt, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0}}>
-                  {mod.icon}
+                <div style={{width:56, height:56, borderRadius:"50%", background:`${mod.color}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0}}>
+                  <mod.Icon size={24} color={mod.color}/>
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:15, fontWeight:900, color:mod.status==="LIVE"?C.ink:C.inkLight}}>{mod.label}</div>
+                  <div style={{fontSize:16, fontWeight:900, color:mod.status==="LIVE"?C.ink:C.inkLight}}>{mod.label}</div>
                   <div style={{fontSize:11, color:C.inkLight, marginTop:2}}>{mod.desc}</div>
                 </div>
                 <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end", gap:5}}>
@@ -2990,7 +2990,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
                   <div style={{fontSize:9, fontWeight:800, letterSpacing:1, color:mod.status==="LIVE"?C.teal:C.inkLight, background:mod.status==="LIVE"?`${C.teal}18`:C.surfaceAlt, padding:"3px 9px", borderRadius:100}}>
                     {mod.status}
                   </div>
-                  {mod.status==="LIVE"&&<span style={{color:C.teal, fontSize:14}}>→</span>}
+                  {mod.status==="LIVE"&&<ArrowRight size={16} color={C.teal}/>}
                 </div>
               </div>
             </button>
