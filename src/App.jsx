@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, Home as HomeIcon, AlertTriangle, ArrowRight, FileText, Clock, RefreshCw,
   Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
+  Sparkles, Camera, Paperclip, Footprints, Wrench,
 } from "lucide-react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
@@ -571,8 +572,8 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   const closeDocRef = useRef();
 
   const showToast   = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
-  const statColor   = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?C.prog:C.open;
-  const statBg      = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?C.progBg:C.openBg;
+  const statColor   = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?"#2563EB":C.open;
+  const statBg      = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
   const myFindings      = issues.filter(i => i.manager === currentUser.name);
   const myOpenCt    = myFindings.filter(i => i.status === "OPEN").length;
 
@@ -703,31 +704,35 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
     const isMyFinding = selected.manager === currentUser.name;
     return (
       <Shell toast={toast}>
-        <div style={{ background:cat.grad }}>
-          <div style={{ display:"flex", alignItems:"center", padding:"16px", gap:10 }}>
-            <button style={sx.backBtnW} onClick={() => setSelected(null)}>← Back</button>
-            <div style={{ marginLeft:"auto", background:"rgba(255,255,255,0.22)", borderRadius:100,
-              padding:"3px 14px", fontSize:12, fontWeight:900, color:"#fff", fontFamily:MONO }}>
+        <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", padding:"16px 16px 0", gap:10 }}>
+            <button onClick={() => setSelected(null)} style={{ width:36, height:36, borderRadius:9,
+              background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={16} color={C.ink}/>
+            </button>
+            <div style={{ marginLeft:"auto", background:C.surfaceAlt, borderRadius:100,
+              padding:"3px 14px", fontSize:12, fontWeight:900, color:C.inkMid, fontFamily:MONO }}>
               {selected.id}
             </div>
-            {isMyFinding && <div style={{ background:"rgba(255,255,255,0.22)", borderRadius:100,
-              padding:"3px 10px", fontSize:9, fontWeight:800, color:"#fff" }}>MY Finding</div>}
+            {isMyFinding && <div style={{ background:`${currentUser.color}18`, borderRadius:100,
+              padding:"3px 10px", fontSize:9, fontWeight:800, color:currentUser.color }}>MY Finding</div>}
           </div>
           {selected.photo && (
-            <div style={{ position:"relative", margin:"0 16px", borderRadius:14, overflow:"hidden" }}>
+            <div style={{ position:"relative", margin:"12px 16px 0", borderRadius:14, overflow:"hidden" }}>
               <img src={selected.photo} alt="" style={{ width:"100%", height:180, objectFit:"cover" }}/>
               <div style={{ position:"absolute", bottom:8, left:8, background:"rgba(0,0,0,0.6)",
                 color:"#fff", fontSize:9, padding:"3px 10px", borderRadius:6 }}>📷 EVIDENCE</div>
             </div>
           )}
-          <div style={{ padding:"12px 18px 18px" }}>
+          <div style={{ padding:"14px 16px 18px" }}>
             <div style={{ display:"inline-flex", alignItems:"center", gap:6,
-              background:"rgba(255,255,255,0.22)", borderRadius:100, padding:"3px 12px", marginBottom:8 }}>
-              <span>{cat.icon}</span>
-              <span style={{ fontSize:11, fontWeight:800, color:"#fff", letterSpacing:1 }}>{cat.label}</span>
+              background:cat.bg, borderRadius:100, padding:"3px 12px", marginBottom:9 }}>
+              <Folder size={13} color={cat.color}/>
+              <span style={{ fontSize:11, fontWeight:800, color:cat.color, letterSpacing:1 }}>{cat.label}</span>
             </div>
-            <div style={{ fontSize:19, fontWeight:900, color:"#fff", marginBottom:5 }}>{selected.dept}</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.85)", lineHeight:1.6 }}>{selected.desc}</div>
+            <div style={{ fontSize:19, fontWeight:900, color:C.ink, marginBottom:5 }}>{selected.dept}</div>
+            <div style={{ fontSize:13, color:C.inkMid, lineHeight:1.6 }}>{selected.desc}</div>
           </div>
         </div>
 
@@ -787,7 +792,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
         <div style={{ margin:"0 16px 12px", background:`${C.s5}12`,
           border:`1px solid ${C.s5}44`, borderRadius:12, padding:"12px 14px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-            <span style={{ animation:"spin 8s linear infinite", display:"inline-block" }}>⚙</span>
+            <Sparkles size={14} color={C.s5}/>
             <div style={{ fontSize:10, fontWeight:800, color:C.s5, letterSpacing:2 }}>
               5S COMPLIANCE NOTE</div>
             <div style={{ marginLeft:"auto", background:C.s5, color:"#fff",
@@ -1702,9 +1707,6 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
         {filtered.map((nc,idx) => {
           const isMyFinding = nc.manager === currentUser.name;
           const band = nc.severityBand;
-          const statusStyle = nc.status==="CLOSED" ? { bg:C.closedBg, col:C.closed }
-            : nc.status==="IN PROGRESS" ? { bg:"#DBEAFE", col:"#2563EB" }
-            : { bg:C.openBg, col:C.open };
           return (
             <div key={nc.id} className="card" style={{ animationDelay:`${idx*0.07}s` }}>
               <button style={{ width:"100%", background:C.surface,
@@ -1733,7 +1735,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
                       <div style={{ background:`${C.prog}18`, color:C.prog,
                         fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>OBSERVATION</div>
                     ) : null}
-                    <div style={{ background:statusStyle.bg, color:statusStyle.col, fontSize:9, fontWeight:800,
+                    <div style={{ background:statBg(nc.status), color:statColor(nc.status), fontSize:9, fontWeight:800,
                       padding:"2px 8px", borderRadius:100 }}>{nc.status}</div>
                     {isMyFinding && <div style={{ background:`${currentUser.color}18`,
                       color:currentUser.color, fontSize:8, fontWeight:800,
@@ -1861,6 +1863,10 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   // items/setItems passed from App root for shared badge counts
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
+  const [myOnly,      setMyOnly]      = useState(false);
+  const [filter,      setFilter]      = useState("ALL");
+  const [catFilter,   setCatFilter]   = useState("");
+  const [showCatMenu, setShowCatMenu] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1887,8 +1893,8 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   const closeDocRef = useRef();
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
-  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?C.prog:C.open;
-  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?C.progBg:C.openBg;
+  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?"#2563EB":C.open;
+  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
   const priColor  = p => p==="CRITICAL"?"#9333EA":p==="HIGH"?C.open:p==="MEDIUM"?C.prog:C.teal;
   const getCat    = k => GEMBA_CATS.find(c => c.key===k) || GEMBA_CATS[5];
 
@@ -1947,18 +1953,22 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
     const isOwner = selected.owner===currentUser.name;
     return (
       <Shell toast={toast}>
-        <div style={{background:c.grad}}>
-          <div style={{display:"flex",alignItems:"center",padding:"16px",gap:10}}>
-            <button style={sx.backBtnW} onClick={()=>setSelected(null)}>← Back</button>
-            <div style={{marginLeft:"auto",background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:"#fff",fontFamily:MONO}}>{selected.id}</div>
+        <div style={{background:C.surface, borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",padding:"16px 16px 0",gap:10}}>
+            <button onClick={()=>setSelected(null)} style={{ width:36, height:36, borderRadius:9,
+              background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={16} color={C.ink}/>
+            </button>
+            <div style={{marginLeft:"auto",background:C.surfaceAlt,borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:C.inkMid,fontFamily:MONO}}>{selected.id}</div>
           </div>
-          {selected.photo&&(<div style={{position:"relative",margin:"0 16px",borderRadius:14,overflow:"hidden"}}><img src={selected.photo} alt="" style={{width:"100%",height:180,objectFit:"cover"}}/></div>)}
-          <div style={{padding:"12px 18px 18px"}}>
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"4px 12px",marginBottom:8}}>
-              <span>{c.icon}</span><span style={{fontSize:11,fontWeight:800,color:"#fff"}}>{c.label}</span>
+          {selected.photo&&(<div style={{position:"relative",margin:"12px 16px 0",borderRadius:14,overflow:"hidden"}}><img src={selected.photo} alt="" style={{width:"100%",height:180,objectFit:"cover"}}/></div>)}
+          <div style={{padding:"14px 16px 18px"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:c.bg,borderRadius:100,padding:"4px 12px",marginBottom:9}}>
+              <Folder size={13} color={c.color}/><span style={{fontSize:11,fontWeight:800,color:c.color}}>{c.label}</span>
             </div>
-            <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:5}}>{selected.area}</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,0.85)",lineHeight:1.6}}>{selected.desc}</div>
+            <div style={{fontSize:19,fontWeight:900,color:C.ink,marginBottom:5}}>{selected.area}</div>
+            <div style={{fontSize:13,color:C.inkMid,lineHeight:1.6}}>{selected.desc}</div>
           </div>
         </div>
         <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -2059,7 +2069,7 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   // Raise view
   if (tab==="raise") return (
     <Shell toast={toast}>
-      <div style={{background:`linear-gradient(135deg,#8B5CF6,#6D28D9)`,padding:"14px 16px 16px"}}>
+      <div style={{background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,padding:"14px 16px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button style={sx.backBtnW} onClick={()=>setTab("board")}>← Back</button>
           <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>LOG GEMBA FINDING</div>
@@ -2113,52 +2123,119 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   const openCt   = items.filter(i=>i.status==="OPEN").length;
   const progCt   = items.filter(i=>i.status==="IN PROGRESS").length;
   const closedCt = items.filter(i=>i.status==="CLOSED").length;
+  let visible = myOnly ? items.filter(i=>i.owner===currentUser.name) : items;
+  if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
+  if (catFilter) visible = visible.filter(i=>i.category===catFilter);
   return (
     <Shell toast={toast}>
-      <div style={{background:"linear-gradient(135deg,#8B5CF6,#6D28D9)",padding:"20px 16px 18px",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.07)",pointerEvents:"none"}}/>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,position:"relative"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button style={{...sx.backBtnW}} onClick={onBack}>← Home</button>
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={onBack} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+              border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={18} color={C.ink}/>
+            </button>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${TEAL}14`,
+              border:`1.5px solid ${TEAL}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Footprints size={18} color={TEAL}/>
+            </div>
             <div>
-              <div style={{fontSize:16,fontWeight:900,color:"#fff",letterSpacing:1}}>Gemba Walks</div>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>FLOOR OBSERVATIONS & ACTIONS</div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.ink }}>Gemba Walks</div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>FLOOR OBSERVATIONS &amp; ACTIONS</div>
             </div>
           </div>
-          <div style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
-            <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{openCt}</div>
-            <div style={{fontSize:8,color:"rgba(255,255,255,0.6)"}}>OPEN</div>
-          </div>
+          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+            <HomeIcon size={14}/> Home
+          </button>
         </div>
-        <button style={{width:"100%",background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}} onClick={()=>setTab("raise")}>
-          <span style={{fontSize:20}}>➕</span>
-          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>LOG GEMBA FINDING</div><div style={{fontSize:10,color:"rgba(255,255,255,0.7)",marginTop:2}}>Photo · Observation · Assign owner · AI action note</div></div>
-          <span style={{marginLeft:"auto",color:"rgba(255,255,255,0.8)",fontSize:16}}>→</span>
+        <button style={{width:"100%",background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:`0 6px 24px ${TEAL}33`,textAlign:"left"}} onClick={()=>setTab("raise")}>
+          <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center"}}><ClipboardList size={20} color="#fff"/></div>
+          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>LOG GEMBA FINDING</div><div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2}}>Photo · Observation · Assign owner · AI action note</div></div>
+          <ArrowRight size={16} color="rgba(255,255,255,0.8)" style={{marginLeft:"auto"}}/>
         </button>
       </div>
-      <div style={{display:"flex",gap:8,padding:"10px 16px 0"}}>
-        {[{label:"OPEN",val:openCt,col:C.open,bg:C.openBg},{label:"IN PROGRESS",val:progCt,col:C.prog,bg:C.progBg},{label:"CLOSED",val:closedCt,col:C.closed,bg:C.closedBg}].map(st=>(
-          <div key={st.label} style={{flex:1,background:st.bg,border:`1px solid ${st.col}44`,borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:900,color:st.col}}>{st.val}</div>
-            <div style={{fontSize:7,color:C.inkMid,letterSpacing:1,marginTop:3}}>{st.label}</div>
-          </div>
+
+      <div style={{ display:"flex", margin:"12px 16px 0", background:C.surface,
+        border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+        {[{label:"OPEN",val:openCt,Icon:FileText,f:"OPEN"},{label:"IN PROGRESS",val:progCt,Icon:Clock,f:"IN PROGRESS"},{label:"CLOSED",val:closedCt,Icon:RefreshCw,f:"CLOSED"}].map((st,i)=>(
+          <button key={st.label} onClick={()=>{setFilter(filter===st.f?"ALL":st.f);setMyOnly(false);}}
+            style={{flex:1,background:"none",border:"none",borderLeft:i>0?`1px solid ${C.border}`:"none",padding:"12px 6px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",opacity:filter===st.f&&!myOnly?1:0.85}}>
+            <st.Icon size={16} color={filter===st.f&&!myOnly?TEAL:C.inkLight}/>
+            <div style={{fontSize:20,fontWeight:900,color:C.ink}}>{st.val}</div>
+            <div style={{fontSize:8,color:C.inkLight,letterSpacing:0.5}}>{st.label}</div>
+          </button>
         ))}
       </div>
-      <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:10}}>
-        {items.map((item,idx)=>{
+
+      <div style={{ display:"flex", padding:"12px 16px 0", gap:8, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:14, flex:1, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+          <button onClick={()=>{setMyOnly(v=>!v);setFilter("ALL");}}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none",
+              borderBottom:`2px solid ${myOnly?TEAL:"transparent"}`, color:myOnly?TEAL:C.inkLight,
+              fontSize:11, fontWeight:700, padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+            <Av txt={currentUser.initials} color={currentUser.color} size={14}/> Mine
+          </button>
+          {[["ALL","All Findings"],["OPEN","Open"],["IN PROGRESS","In Progress"],["CLOSED","Closed"]].map(([f,label])=>(
+            <button key={f} onClick={()=>{setFilter(f);setMyOnly(false);}}
+              style={{ background:"none", border:"none",
+                borderBottom:`2px solid ${filter===f&&!myOnly?TEAL:"transparent"}`,
+                color:filter===f&&!myOnly?TEAL:C.inkLight, fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={()=>setShowCatMenu(v=>!v)}
+            style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${catFilter?TEAL:C.border}`, borderRadius:9, padding:"7px 11px",
+              fontSize:11, fontWeight:700, color:catFilter?TEAL:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
+            <FilterIcon size={13}/> Filter
+          </button>
+          {showCatMenu && (
+            <div style={{ position:"absolute", top:"110%", right:0, background:C.surface,
+              border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 24px rgba(30,32,37,0.14)",
+              zIndex:20, minWidth:150, overflow:"hidden" }}>
+              <button onClick={()=>{setCatFilter("");setShowCatMenu(false);}}
+                style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:!catFilter?C.surfaceAlt:"none",
+                  border:"none", fontSize:11, fontWeight:700, color:C.ink, cursor:"pointer", fontFamily:FONT }}>
+                All categories
+              </button>
+              {GEMBA_CATS.map(c=>(
+                <button key={c.key} onClick={()=>{setCatFilter(c.key);setShowCatMenu(false);}}
+                  style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:catFilter===c.key?C.surfaceAlt:"none",
+                    border:"none", fontSize:11, fontWeight:700, color:c.color, cursor:"pointer", fontFamily:FONT }}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {visible.map((item,idx)=>{
           const c=getCat(item.category);
           const isOwner=item.owner===currentUser.name;
           return (
             <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
-              <button style={{width:"100%",background:C.surface,border:`1.5px solid ${isOwner&&item.status==="OPEN"?`${C.open}66`:C.border}`,borderRadius:14,padding:0,cursor:"pointer",textAlign:"left",overflow:"hidden",fontFamily:FONT,display:"block",boxShadow:C.shadow}} onClick={()=>setSelected(item)}>
-                <div style={{height:4,background:c.grad}}/>
-                <div style={{padding:"12px 14px"}}>
+              <button style={{width:"100%",background:C.surface,border:`1px solid ${isOwner&&item.status==="OPEN"?`${C.open}55`:C.border}`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",fontFamily:FONT,display:"flex",gap:12,boxShadow:C.shadow}} onClick={()=>setSelected(item)}>
+                <div style={{ width:44, height:44, borderRadius:10, background:c.bg,
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Folder size={18} color={c.color}/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
                   <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-                    <div style={{background:`${c.color}22`,color:c.color,fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:100}}>{c.icon} {c.label}</div>
-                    <div style={{background:`${priColor(item.priority)}22`,color:priColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
+                    <div style={{background:c.bg,color:c.color,fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:100}}>{c.label}</div>
+                    <div style={{background:`${priColor(item.priority)}18`,color:priColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
                     <div style={{background:statBg(item.status),color:statColor(item.status),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.status}</div>
                     {isOwner&&<div style={{background:`${currentUser.color}18`,color:currentUser.color,fontSize:8,fontWeight:800,padding:"2px 7px",borderRadius:100}}>MINE</div>}
-                    <div style={{marginLeft:"auto",fontSize:10,color:C.inkLight,fontFamily:MONO}}>{item.id}</div>
+                    <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                      <span style={{fontSize:10,color:C.inkLight,fontFamily:MONO}}>{item.id}</span>
+                      <ArrowRight size={13} color={C.inkLight}/>
+                    </div>
                   </div>
                   <div style={{fontSize:13,fontWeight:800,color:C.ink,marginBottom:4}}>{item.area}</div>
                   <div style={{fontSize:12,color:C.inkMid,lineHeight:1.55,marginBottom:10}}>{item.desc}</div>
@@ -2175,7 +2252,29 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
           );
         })}
       </div>
-      {items.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:40}}>🚶</div><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No Gemba findings yet</div></div>}
+      {visible.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><Footprints size={36} color={C.inkLight}/><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No Gemba findings yet</div></div>}
+
+      {/* Bottom nav */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+        width:"100%", maxWidth:480, background:C.surface,
+        borderTop:`1px solid ${C.border}`, display:"flex",
+        paddingBottom:"env(safe-area-inset-bottom,0)",
+        boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
+        {[
+          { id:"board", Icon:LayoutGrid,    label:"BOARD" },
+          { id:"raise", Icon:ClipboardList, label:"RAISE" },
+        ].map(n => (
+          <button key={n.id} onClick={()=>setTab(n.id)}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+              gap:3, padding:"11px 2px", background:"none", border:"none",
+              color:tab===n.id?TEAL:C.inkLight, fontSize:8, letterSpacing:1,
+              fontWeight:800, cursor:"pointer", fontFamily:FONT,
+              borderTop:`2.5px solid ${tab===n.id?TEAL:"transparent"}` }}>
+            <n.Icon size={18}/>
+            {n.label}
+          </button>
+        ))}
+      </div>
     </Shell>
   );
 }
@@ -2235,6 +2334,10 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
   const [dbLoaded, setDbLoaded] = useState(false);
+  const [myOnly,      setMyOnly]      = useState(false);
+  const [filter,      setFilter]      = useState("ALL");
+  const [prioFilter,  setPrioFilter]  = useState("");
+  const [showPrioMenu,setShowPrioMenu]= useState(false);
 
   useEffect(() => {
     (async () => {
@@ -2272,8 +2375,8 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   const [newComment,     setNewComment]    = useState("");
 
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
-  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?C.prog:C.open;
-  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?C.progBg:C.openBg;
+  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?"#2563EB":C.open;
+  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
   const soon      = () => showToast("This tab isn't built yet — coming soon");
 
   const persist = updated => {
@@ -2344,14 +2447,18 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
     const s = selected;
     return (
       <Shell toast={toast}>
-        <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"16px 16px 18px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-            <button style={sx.backBtnW} onClick={()=>setSelected(null)}>← Back</button>
-            <div style={{marginLeft:"auto",background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:"#fff",fontFamily:MONO}}>#{s.id}</div>
-            <div style={{background:"rgba(255,255,255,0.22)",borderRadius:100,padding:"3px 12px",fontSize:11,fontWeight:800,color:"#fff"}}>R{(s.cost||0).toFixed(2)}</div>
+        <div style={{background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"16px 16px 18px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <button onClick={()=>setSelected(null)} style={{ width:36, height:36, borderRadius:9,
+              background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={16} color={C.ink}/>
+            </button>
+            <div style={{marginLeft:"auto",background:C.surfaceAlt,borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:C.inkMid,fontFamily:MONO}}>#{s.id}</div>
+            <div style={{background:C.surfaceAlt,borderRadius:100,padding:"3px 12px",fontSize:11,fontWeight:800,color:C.inkMid}}>R{(s.cost||0).toFixed(2)}</div>
           </div>
-          <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:4}}>{s.title}</div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,0.85)"}}>{s.machineNumber} · {s.operationalUnit}</div>
+          <div style={{fontSize:18,fontWeight:900,color:C.ink,marginBottom:4}}>{s.title}</div>
+          <div style={{fontSize:12,color:C.inkMid}}>{s.machineNumber} · {s.operationalUnit}</div>
         </div>
 
         <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -2464,7 +2571,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   // ── Raise view ───────────────────────────────────────────
   if (tab==="raise") return (
     <Shell toast={toast}>
-      <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"14px 16px 16px"}}>
+      <div style={{background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,padding:"14px 16px 16px"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button style={sx.backBtnW} onClick={()=>setTab("board")}>← Back</button>
           <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>NEW JOB CARD</div>
@@ -2508,7 +2615,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
         </div>
         <FLabel text="MAINTENANCE DESCRIPTION"/>
         <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the fault or work required…"/>
-        <button style={{width:"100%",padding:"14px",background:title&&machineNo&&unit&&admin&&desc?`linear-gradient(135deg,#F59E0B,#D97706)`:C.surfaceAlt,border:"none",borderRadius:11,color:title&&machineNo&&unit&&admin&&desc?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
+        <button style={{width:"100%",padding:"14px",background:title&&machineNo&&unit&&admin&&desc?`linear-gradient(135deg,${TEAL},${C.tealDk})`:C.surfaceAlt,border:"none",borderRadius:11,color:title&&machineNo&&unit&&admin&&desc?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
           onClick={handleRaise} disabled={saving}>
           🔧 Raise Job Card
         </button>
@@ -2520,40 +2627,102 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   const openCt   = items.filter(i=>i.status==="OPEN").length;
   const progCt   = items.filter(i=>i.status==="IN PROGRESS").length;
   const closedCt = items.filter(i=>i.status==="CLOSED").length;
+  let visible = myOnly ? items.filter(i=>maintName(MAINT_ADMINS,i.maintAdmin)===currentUser.name) : items;
+  if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
+  if (prioFilter) visible = visible.filter(i=>i.priority===prioFilter);
   return (
     <Shell toast={toast}>
-      <div style={{background:"linear-gradient(135deg,#F59E0B,#D97706)",padding:"20px 16px 18px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button style={sx.backBtnW} onClick={onBack}>← Home</button>
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={onBack} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+              border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={18} color={C.ink}/>
+            </button>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${TEAL}14`,
+              border:`1.5px solid ${TEAL}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Wrench size={18} color={TEAL}/>
+            </div>
             <div>
-              <div style={{fontSize:16,fontWeight:900,color:"#fff",letterSpacing:1}}>Maintenance</div>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>JOB CARDS</div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.ink }}>Maintenance</div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>JOB CARDS</div>
             </div>
           </div>
-          <div style={{background:"rgba(255,255,255,0.15)",border:"1px solid rgba(255,255,255,0.25)",borderRadius:10,padding:"8px 12px",textAlign:"center"}}>
-            <div style={{fontSize:20,fontWeight:900,color:"#fff"}}>{openCt}</div>
-            <div style={{fontSize:8,color:"rgba(255,255,255,0.6)"}}>OPEN</div>
-          </div>
+          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+            <HomeIcon size={14}/> Home
+          </button>
         </div>
-        <button style={{width:"100%",background:"rgba(255,255,255,0.15)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}} onClick={()=>setTab("raise")}>
-          <span style={{fontSize:20}}>➕</span>
-          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>NEW JOB CARD</div><div style={{fontSize:10,color:"rgba(255,255,255,0.7)",marginTop:2}}>Machine · Priority · Assign admin</div></div>
-          <span style={{marginLeft:"auto",color:"rgba(255,255,255,0.8)",fontSize:16}}>→</span>
+        <button style={{width:"100%",background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:`0 6px 24px ${TEAL}33`,textAlign:"left"}} onClick={()=>setTab("raise")}>
+          <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center"}}><Wrench size={20} color="#fff"/></div>
+          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>NEW JOB CARD</div><div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2}}>Machine · Priority · Assign admin</div></div>
+          <ArrowRight size={16} color="rgba(255,255,255,0.8)" style={{marginLeft:"auto"}}/>
         </button>
       </div>
-      <div style={{display:"flex",gap:8,padding:"10px 16px 0"}}>
-        {[{label:"OPEN",val:openCt,col:C.open,bg:C.openBg},{label:"IN PROGRESS",val:progCt,col:C.prog,bg:C.progBg},{label:"CLOSED",val:closedCt,col:C.closed,bg:C.closedBg}].map(st=>(
-          <div key={st.label} style={{flex:1,background:st.bg,border:`1px solid ${st.col}44`,borderRadius:12,padding:"10px 6px",textAlign:"center"}}>
-            <div style={{fontSize:22,fontWeight:900,color:st.col}}>{st.val}</div>
-            <div style={{fontSize:7,color:C.inkMid,letterSpacing:1,marginTop:3}}>{st.label}</div>
-          </div>
+
+      <div style={{ display:"flex", margin:"12px 16px 0", background:C.surface,
+        border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+        {[{label:"OPEN",val:openCt,Icon:FileText,f:"OPEN"},{label:"IN PROGRESS",val:progCt,Icon:Clock,f:"IN PROGRESS"},{label:"CLOSED",val:closedCt,Icon:RefreshCw,f:"CLOSED"}].map((st,i)=>(
+          <button key={st.label} onClick={()=>{setFilter(filter===st.f?"ALL":st.f);setMyOnly(false);}}
+            style={{flex:1,background:"none",border:"none",borderLeft:i>0?`1px solid ${C.border}`:"none",padding:"12px 6px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",opacity:filter===st.f&&!myOnly?1:0.85}}>
+            <st.Icon size={16} color={filter===st.f&&!myOnly?TEAL:C.inkLight}/>
+            <div style={{fontSize:20,fontWeight:900,color:C.ink}}>{st.val}</div>
+            <div style={{fontSize:8,color:C.inkLight,letterSpacing:0.5}}>{st.label}</div>
+          </button>
         ))}
       </div>
-      <div style={{padding:"10px 16px",display:"flex",flexDirection:"column",gap:10}}>
-        {items.map((item,idx)=>(
+
+      <div style={{ display:"flex", padding:"12px 16px 0", gap:8, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:14, flex:1, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+          <button onClick={()=>{setMyOnly(v=>!v);setFilter("ALL");}}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none",
+              borderBottom:`2px solid ${myOnly?TEAL:"transparent"}`, color:myOnly?TEAL:C.inkLight,
+              fontSize:11, fontWeight:700, padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+            <Av txt={currentUser.initials} color={currentUser.color} size={14}/> Mine
+          </button>
+          {[["ALL","All Job Cards"],["OPEN","Open"],["IN PROGRESS","In Progress"],["CLOSED","Closed"]].map(([f,label])=>(
+            <button key={f} onClick={()=>{setFilter(f);setMyOnly(false);}}
+              style={{ background:"none", border:"none",
+                borderBottom:`2px solid ${filter===f&&!myOnly?TEAL:"transparent"}`,
+                color:filter===f&&!myOnly?TEAL:C.inkLight, fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={()=>setShowPrioMenu(v=>!v)}
+            style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${prioFilter?TEAL:C.border}`, borderRadius:9, padding:"7px 11px",
+              fontSize:11, fontWeight:700, color:prioFilter?TEAL:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
+            <FilterIcon size={13}/> Filter
+          </button>
+          {showPrioMenu && (
+            <div style={{ position:"absolute", top:"110%", right:0, background:C.surface,
+              border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 24px rgba(30,32,37,0.14)",
+              zIndex:20, minWidth:170, overflow:"hidden" }}>
+              <button onClick={()=>{setPrioFilter("");setShowPrioMenu(false);}}
+                style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:!prioFilter?C.surfaceAlt:"none",
+                  border:"none", fontSize:11, fontWeight:700, color:C.ink, cursor:"pointer", fontFamily:FONT }}>
+                All priorities
+              </button>
+              {MAINT_PRIORITIES.map(p=>(
+                <button key={p} onClick={()=>{setPrioFilter(p);setShowPrioMenu(false);}}
+                  style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:prioFilter===p?C.surfaceAlt:"none",
+                    border:"none", fontSize:11, fontWeight:700, color:maintPriColor(p), cursor:"pointer", fontFamily:FONT }}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {visible.map((item,idx)=>(
           <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
-            <button style={{width:"100%",background:C.surface,border:`1.5px solid ${C.border}`,borderRadius:14,padding:0,cursor:"pointer",textAlign:"left",overflow:"hidden",fontFamily:FONT,display:"block",boxShadow:C.shadow}} onClick={()=>{
+            <button style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",fontFamily:FONT,display:"flex",gap:12,boxShadow:C.shadow}} onClick={()=>{
               setSelected(item);
               setArtisan(item.artisan||""); setTargetDate(item.targetDate||""); setDowntime(item.downtime);
               setAction(item.action||""); setRepairsDone(!!item.repairsDone); setToolsReturned(!!item.toolsReturned);
@@ -2561,12 +2730,18 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
               setHoursWorked(item.hoursWorked||""); setActualDate(item.actualCompletionDate||"");
               setEffReview(item.effectivenessReview||""); setMgrReview(item.managerReview||"");
             }}>
-              <div style={{height:4,background:`linear-gradient(135deg,${maintPriColor(item.priority)},${maintPriColor(item.priority)}aa)`}}/>
-              <div style={{padding:"12px 14px"}}>
+              <div style={{ width:44, height:44, borderRadius:10, background:`${maintPriColor(item.priority)}18`,
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Wrench size={18} color={maintPriColor(item.priority)}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-                  <div style={{background:`${maintPriColor(item.priority)}22`,color:maintPriColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
+                  <div style={{background:`${maintPriColor(item.priority)}18`,color:maintPriColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
                   <div style={{background:statBg(item.status),color:statColor(item.status),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.status}</div>
-                  <div style={{marginLeft:"auto",fontSize:10,color:C.inkLight,fontFamily:MONO}}>#{item.id}</div>
+                  <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                    <span style={{fontSize:10,color:C.inkLight,fontFamily:MONO}}>#{item.id}</span>
+                    <ArrowRight size={13} color={C.inkLight}/>
+                  </div>
                 </div>
                 <div style={{fontSize:13,fontWeight:800,color:C.ink,marginBottom:4}}>{item.title}</div>
                 <div style={{fontSize:12,color:C.inkMid,lineHeight:1.55,marginBottom:8}}>{item.description}</div>
@@ -2579,7 +2754,29 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
           </div>
         ))}
       </div>
-      {items.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:40}}>🔧</div><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No job cards yet</div></div>}
+      {visible.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><Wrench size={36} color={C.inkLight}/><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No job cards yet</div></div>}
+
+      {/* Bottom nav */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+        width:"100%", maxWidth:480, background:C.surface,
+        borderTop:`1px solid ${C.border}`, display:"flex",
+        paddingBottom:"env(safe-area-inset-bottom,0)",
+        boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
+        {[
+          { id:"board", Icon:LayoutGrid, label:"BOARD" },
+          { id:"raise", Icon:Wrench,     label:"RAISE" },
+        ].map(n => (
+          <button key={n.id} onClick={()=>setTab(n.id)}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+              gap:3, padding:"11px 2px", background:"none", border:"none",
+              color:tab===n.id?TEAL:C.inkLight, fontSize:8, letterSpacing:1,
+              fontWeight:800, cursor:"pointer", fontFamily:FONT,
+              borderTop:`2.5px solid ${tab===n.id?TEAL:"transparent"}` }}>
+            <n.Icon size={18}/>
+            {n.label}
+          </button>
+        ))}
+      </div>
     </Shell>
   );
 }
@@ -2646,7 +2843,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   const modules = [
     { id:"5s",          icon:"🏭", label:"5S Housekeeping", desc:"Audits · Findings · Compliance scoring",         grad:`linear-gradient(135deg,${TEAL},${TEAL}bb)`, color:TEAL,      status:"LIVE",        badge:my5sOpen    },
     { id:"gemba",       icon:"🚶", label:"Gemba Walks",      desc:"Floor observations · Action tracking",       grad:"linear-gradient(135deg,#8B5CF6,#6D28D9)",   color:"#8B5CF6",  status:"LIVE",        badge:myGembaOpen },
-    { id:"maintenance", icon:"🔧", label:"Maintenance",       desc:"Job cards · Planned maintenance",            grad:"linear-gradient(135deg,#F59E0B,#D97706)",   color:"#F59E0B",  status:"LIVE",        badge:myMaintOpen },
+    { id:"maintenance", icon:"🔧", label:"Maintenance",       desc:"Job cards · Planned maintenance",            grad:`linear-gradient(135deg,${TEAL},${C.tealDk})`,   color:TEAL,  status:"LIVE",        badge:myMaintOpen },
     { id:"quality",     icon:"✅", label:"Quality Desk",      desc:"Complaints · Holds · CAPA",                 grad:"linear-gradient(135deg,#10B981,#059669)",   color:"#10B981",  status:"COMING SOON", badge:0           },
   ];
 
