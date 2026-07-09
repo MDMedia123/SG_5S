@@ -76,6 +76,11 @@ const USERS = [
   { id:"clifford", name:"Clifford Barnes",        dept:"Quality Assurance",    role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#64748B"  },
   { id:"richard",  name:"Richard Downes",         dept:"Executive",            role:"Admin",      title:"Managing Director",           initials:"RD", color:SGREY      },
   { id:"jason",    name:"Jason Staats",           dept:"Finance",              role:"Admin",      title:"Financial Director",          initials:"JS", color:SGREY      },
+  { id:"clint",    name:"Clint Jennings",         dept:"Operations",           role:"Manager",    title:"Operations Manager",          initials:"CJ", color:"#0EA5E9"  },
+  { id:"mikevdw",  name:"Mike Van Der Westhuizen",dept:"Technical & Mechanical",role:"Manager",   title:"Technical and Mechanical Manager", initials:"MV", color:"#0891B2" },
+  { id:"peroshin", name:"Peroshin Chetty",        dept:"Supply Chain",         role:"Manager",    title:"Supply Chain Manager",        initials:"PC", color:"#D946EF"  },
+  { id:"julian",   name:"Julian Naidoo",          dept:"Production Planning",  role:"Manager",    title:"Production Planning Manager", initials:"JN", color:"#84CC16"  },
+  { id:"mikemc",   name:"Mike Mcgrath",           dept:"Materials",            role:"Manager",    title:"Materials Manager",           initials:"MM", color:"#F43F5E"  },
 ];
 
 const DEPARTMENTS = [
