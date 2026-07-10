@@ -95,13 +95,13 @@ const SEED_USERS = [
   { id:"rajen",    name:"Rajen Padayachee",     dept:"Litho Print",          role:"Manager",    title:"Litho Print Manager",         initials:"RP", color:TEAL       },
   { id:"mark",     name:"Mark O'Brien",          dept:"Finishing",            role:"Manager",    title:"Finishing Manager",           initials:"MO", color:"#F59E0B"  },
   { id:"riaan",    name:"Riaan Roux",            dept:"Punching",             role:"Manager",    title:"Punching Manager",            initials:"RR", color:"#EF4444"  },
-  { id:"sibusiso", name:"Sibusiso Ngubane",      dept:"Quality Assurance",    role:"Manager",    title:"QA Manager",                  initials:"SN", color:"#10B981"  },
+  { id:"sibusiso", name:"Sibusiso Ngubane",      dept:"Quality Control",      role:"Manager",    title:"QA Manager",                  initials:"SN", color:"#10B981"  },
   { id:"nishaal",  name:"Nishaal Ramnarun",      dept:"Raw Materials",        role:"Manager",    title:"Raw Materials Controller",    initials:"NR", color:"#8B5CF6"  },
   { id:"desigran", name:"Desigran Moodley",      dept:"Repro",                role:"Supervisor", title:"Repro Supervisor",            initials:"DM", color:"#F59E0B"  },
   { id:"manoj",    name:"Manoj Singh",           dept:"Corrugating",          role:"Supervisor", title:"Corrugating Supervisor",      initials:"MS", color:TEAL       },
   { id:"yougash",  name:"Yougashree Padayachee", dept:"Logistics",            role:"Manager",    title:"Logistics Manager",          initials:"YP", color:"#EC4899"  },
   { id:"michael",  name:"Michael Downes",        dept:"Innovation & Quality", role:"Auditor",    title:"Innovation/Quality Manager",  initials:"MD", color:TEAL, isSystemAdmin:true },
-  { id:"clifford", name:"Clifford Barnes",        dept:"Quality Assurance",    role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#64748B"  },
+  { id:"clifford", name:"Clifford Barnes",        dept:"Quality Control",      role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#64748B"  },
   { id:"richard",  name:"Richard Downes",         dept:"Executive",            role:"Admin",      title:"Managing Director",           initials:"RD", color:SGREY      },
   { id:"jason",    name:"Jason Staats",           dept:"Finance",              role:"Admin",      title:"Financial Director",          initials:"JS", color:SGREY      },
   { id:"clint",    name:"Clint Jennings",         dept:"Operations",           role:"Manager",    title:"Operations Manager",          initials:"CJ", color:"#0EA5E9"  },
@@ -112,8 +112,10 @@ const SEED_USERS = [
 ];
 
 const DEPARTMENTS = [
-  "Litho Print","Finishing","Punching","Quality Assurance","Raw Materials",
-  "Repro","Corrugating","Logistics","Innovation & Quality","Warehouse","Dispatch","Maintenance",
+  "Corrugating","Die Shop","Dispatch","Estimating","Fast Food","Finishing","Gluing",
+  "Innovation & Quality","Laminating","Litho Print","Logistics","Maintenance","Planning",
+  "Punching","Quality Control","Raw Materials","Repro","Sheeting","Warehouse",
+  "Windowing (Specialties)",
 ];
 
 // ── 5S CATEGORIES ─────────────────────────────────────────
