@@ -4,6 +4,7 @@ import {
   Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
   Sparkles, Camera, Paperclip, Footprints, Wrench, ClipboardCheck, PersonStanding, ShieldCheck,
   Settings, UserPlus, HelpCircle, Users as UsersIcon,
+  ScrollText, BarChart3, Trash2, Pencil, RotateCcw, X as XIcon,
 } from "lucide-react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
@@ -29,6 +30,32 @@ async function sbUpsert(table, row) {
         "Prefer": "resolution=merge-duplicates"
       },
       body: JSON.stringify(row)
+    });
+  } catch { /* silent */ }
+}
+
+async function sbDelete(table, id) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
+    });
+  } catch { /* silent */ }
+}
+
+// Fire-and-forget system-wide audit trail. Every meaningful state change across
+// every module calls this — kept separate from each record's own `timeline` array
+// (which is scoped to that one record) so System Admin can see one flat feed of
+// everything that happened, by whom, regardless of which module it came from.
+async function logAudit(actor, action, module) {
+  try {
+    await fetch(`${SB_URL}/rest/v1/audit_log`, {
+      method: "POST",
+      headers: {
+        apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ actor, action, module, created_at: new Date().toISOString() })
     });
   } catch { /* silent */ }
 }
@@ -666,6 +693,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
     setIssues(p => [issue, ...p]);
     // Save to Supabase
     sbUpsert("issues", { id: issue.id, data: issue, created_at: new Date().toISOString() });
+    logAudit(currentUser.name, `Raised 5S finding ${issue.id} — ${dept}`, "5S");
     setGenning(false);
     showToast(`✓ ${issue.id} ${hasStd ? band.label : "Observation"} — ${m.name} notified`);
     setDesc(""); setDept(""); setMgr(""); setScat(""); setImg(null);
@@ -682,6 +710,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
       if (i.id !== id) return i;
       const updated = { ...i, status, closeEvidence:ce, timeline:[...i.timeline,upd] };
       sbUpsert("issues", { id: updated.id, data: updated, created_at: updated.raisedAt });
+      logAudit(currentUser.name, `${id} status → ${status}`, "5S");
       return updated;
     }));
     if (selected?.id===id) setSelected(p => ({ ...p, status, closeEvidence:ce, timeline:[...p.timeline,upd] }));
@@ -1931,6 +1960,7 @@ function GembaModule({ currentUser, onBack, items, setItems, users }) {
     };
     setItems(p=>[item,...p]);
     sbUpsert("gemba", { id:item.id, data:item, created_at:now });
+    logAudit(currentUser.name, `Raised Gemba finding ${item.id} — ${area}`, "Gemba");
     setGenning(false);
     showToast(`✓ ${item.id} raised — ${m.name} notified`);
     setDesc(""); setArea(""); setOwner(""); setCat(""); setImg(null); setPriority("MEDIUM");
@@ -1946,6 +1976,7 @@ function GembaModule({ currentUser, onBack, items, setItems, users }) {
       if(i.id!==id) return i;
       const updated={...i,status,closeEvidence:ce,timeline:[...i.timeline,upd]};
       sbUpsert("gemba",{id:updated.id,data:updated,created_at:updated.raisedAt});
+      logAudit(currentUser.name, `${id} status → ${status}`, "Gemba");
       return updated;
     }));
     if(selected?.id===id) setSelected(p=>({...p,status,closeEvidence:ce,timeline:[...p.timeline,upd]}));
@@ -2385,10 +2416,11 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
   const soon      = () => showToast("This tab isn't built yet — coming soon");
 
-  const persist = updated => {
+  const persist = (updated, actionLabel) => {
     setItems(p => p.map(i => i.id===updated.id ? updated : i));
     if (selected?.id===updated.id) setSelected(updated);
     sbUpsert("jobcards", { id:updated.id, data:updated, created_at:updated.initiatedAt });
+    if (actionLabel) logAudit(currentUser.name, `${updated.id} ${actionLabel}`, "Maintenance");
   };
 
   const handleRaise = () => {
@@ -2408,6 +2440,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
     };
     setItems(p => [card, ...p]);
     sbUpsert("jobcards", { id:card.id, data:card, created_at:now });
+    logAudit(currentUser.name, `Raised job card ${card.id} — ${title}`, "Maintenance");
     setSaving(false);
     showToast(`✓ Job card ${card.id} raised`);
     setTitle(""); setMachineNo(""); setSection(""); setUnit(""); setAdmin(""); setCcAdmins([]);
@@ -2423,7 +2456,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
       status:"IN PROGRESS",
       timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:`Assigned to ${maintName(MAINT_ARTISANS,artisan)}`, type:"update" }],
     };
-    persist(updated);
+    persist(updated, `assigned to ${maintName(MAINT_ARTISANS,artisan)} — work started`);
     showToast("✓ Work started");
   };
 
@@ -2436,7 +2469,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
       status:"CLOSED",
       timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:"Job card closed", type:"update" }],
     };
-    persist(updated);
+    persist(updated, "closed");
     showToast(`✓ ${selected.id} closed`);
   };
 
@@ -2444,7 +2477,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
     if (!newComment.trim()) return;
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     const updated = { ...selected, comments:[...(selected.comments||[]), { time:now, actor:currentUser.name, text:newComment.trim() }] };
-    persist(updated);
+    persist(updated, "commented");
     setNewComment("");
   };
 
@@ -2856,10 +2889,11 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
   const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
   const soon      = () => showToast("This tab isn't built yet — coming soon");
 
-  const persist = updated => {
+  const persist = (updated, actionLabel) => {
     setItems(p => p.map(i => i.id===updated.id ? updated : i));
     if (selected?.id===updated.id) setSelected(updated);
     sbUpsert("complaints", { id:updated.id, data:updated, created_at:updated.raisedAt });
+    if (actionLabel) logAudit(currentUser.name, `${updated.id} ${actionLabel}`, "Quality");
   };
 
   const handleRaise = () => {
@@ -2880,6 +2914,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     };
     setItems(p => [item, ...p]);
     sbUpsert("complaints", { id:item.id, data:item, created_at:now });
+    logAudit(currentUser.name, `Logged complaint ${item.id} — ${customerName}`, "Quality");
     setSaving(false);
     showToast(`✓ ${item.id} logged — ${m.name} notified`);
     setCustomerName(""); setProduct(""); setDepartment(""); setCategory(""); setPriority("MEDIUM"); setOwner(""); setDesc("");
@@ -2890,7 +2925,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     const upd = { time:now, actor:currentUser.name, action:`Status → ${status}`, type:"update" };
     const updated = { ...selected, status, timeline:[...selected.timeline, upd] };
-    persist(updated);
+    persist(updated, `status → ${status}`);
     showToast(`✓ ${selected.id} updated`);
   };
 
@@ -2902,7 +2937,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
       closeEvidence:{ note:correctiveAction },
       timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:"Complaint closed — CAPA recorded", type:"update" }],
     };
-    persist(updated);
+    persist(updated, "closed");
     showToast(`✓ ${selected.id} closed`);
   };
 
@@ -2910,7 +2945,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     if (!newComment.trim()) return;
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     const updated = { ...selected, comments:[...(selected.comments||[]), { time:now, actor:currentUser.name, text:newComment.trim() }] };
-    persist(updated);
+    persist(updated, "commented");
     setNewComment("");
   };
 
@@ -3231,7 +3266,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
 const SYSADMIN = "#334155";
 const ROLES = ["Manager","Supervisor","Auditor","Admin"];
 
-function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaItems, jobCards, qualityItems }) {
+function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
   const [tab,   setTab]   = useState("overview");
   const [toast, setToast] = useState("");
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
@@ -3256,23 +3291,117 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaIt
     const person = { id, name, dept, role, title, initials, color };
     setUsers(prev => [...prev, person]);
     sbUpsert("app_users", { id, data:person, created_at:new Date().toISOString() });
+    logAudit(currentUser.name, `Added person — ${name} (${title})`, "Admin");
     setSaving(false);
     showToast(`✓ ${name} added`);
     setName(""); setDept(""); setRole("Manager"); setTitle("");
   };
 
-  // ── Overview ─────────────────────────────────────────────
+  // ── Cross-module item helpers (Overview edit/delete/reopen) ──
+  const MOD_TABLE   = { "5S":"issues", "Gemba":"gemba", "Maintenance":"jobcards", "Quality":"complaints" };
+  const MOD_SETTER  = { "5S":setIssues, "Gemba":setGembaItems, "Maintenance":setJobCards, "Quality":setQualityItems };
+  const MOD_DESCKEY = { "5S":"desc", "Gemba":"desc", "Maintenance":"description", "Quality":"description" };
+  const MOD_DATEKEY = { "5S":"raisedAt", "Gemba":"raisedAt", "Maintenance":"initiatedAt", "Quality":"raisedAt" };
+  const MOD_ASSIGNEE = it => {
+    if (it.mod==="5S") return it.raw.manager;
+    if (it.mod==="Gemba") return it.raw.owner;
+    if (it.mod==="Maintenance") return maintName(MAINT_ADMINS, it.raw.maintAdmin);
+    return it.raw.ownerName || users.find(u=>u.id===it.raw.owner)?.name;
+  };
+
   const openIssues  = (issues||[]).filter(i=>i.status!=="CLOSED");
   const openGemba   = (gembaItems||[]).filter(i=>i.status!=="CLOSED");
   const openJobs    = (jobCards||[]).filter(i=>i.status!=="CLOSED");
   const openQual    = (qualityItems||[]).filter(i=>i.status!=="CLOSED");
 
-  const allOpen = [
-    ...openIssues.map(i=>({ mod:"5S",          modColor:TEAL,     title:i.dept,          desc:i.desc,        status:i.status, date:i.raisedAt })),
-    ...openGemba.map(i=>({  mod:"Gemba",       modColor:"#8B5CF6",title:i.area,          desc:i.desc,        status:i.status, date:i.raisedAt })),
-    ...openJobs.map(i=>({   mod:"Maintenance", modColor:"#F59E0B",title:i.title,         desc:i.description, status:i.status, date:i.initiatedAt })),
-    ...openQual.map(i=>({   mod:"Quality",     modColor:"#10B981",title:i.customerName,  desc:i.description, status:i.status, date:i.raisedAt })),
+  const allItems = [
+    ...(issues||[]).map(i=>({ mod:"5S",          modColor:TEAL,     title:i.dept,          desc:i.desc,        status:i.status, date:i.raisedAt,    raw:i })),
+    ...(gembaItems||[]).map(i=>({ mod:"Gemba",   modColor:"#8B5CF6",title:i.area,          desc:i.desc,        status:i.status, date:i.raisedAt,    raw:i })),
+    ...(jobCards||[]).map(i=>({ mod:"Maintenance",modColor:"#F59E0B",title:i.title,        desc:i.description, status:i.status, date:i.initiatedAt, raw:i })),
+    ...(qualityItems||[]).map(i=>({ mod:"Quality",modColor:"#10B981",title:i.customerName, desc:i.description, status:i.status, date:i.raisedAt,    raw:i })),
   ].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  // ── Edit/Delete panel state ───────────────────────────────
+  const [editing,    setEditing]    = useState(null); // the normalized item being edited
+  const [editDesc,   setEditDesc]   = useState("");
+  const [editStatus, setEditStatus] = useState("OPEN");
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const openEdit = it => { setEditing(it); setEditDesc(it.desc||""); setEditStatus(it.status); setConfirmDel(false); };
+  const closeEdit = () => { setEditing(null); setConfirmDel(false); };
+
+  const saveEdit = () => {
+    const { mod, raw } = editing;
+    const descKey = MOD_DESCKEY[mod];
+    const updated = { ...raw, [descKey]: editDesc, status: editStatus };
+    MOD_SETTER[mod](prev => prev.map(x => x.id===raw.id ? updated : x));
+    sbUpsert(MOD_TABLE[mod], { id: updated.id, data: updated, created_at: updated[MOD_DATEKEY[mod]] });
+    logAudit(currentUser.name, `${mod} ${raw.id} edited by admin (status → ${editStatus})`, "Admin");
+    showToast(`✓ ${raw.id} updated`);
+    closeEdit();
+  };
+
+  const deleteItemNow = () => {
+    const { mod, raw } = editing;
+    MOD_SETTER[mod](prev => prev.filter(x => x.id!==raw.id));
+    sbDelete(MOD_TABLE[mod], raw.id);
+    logAudit(currentUser.name, `${mod} ${raw.id} deleted by admin`, "Admin");
+    showToast(`✓ ${raw.id} deleted`);
+    closeEdit();
+  };
+
+  // ── Reports ────────────────────────────────────────────────
+  const leaderboard = (() => {
+    const counts = {};
+    allItems.forEach(it => {
+      const nm = MOD_ASSIGNEE(it);
+      if (!nm) return;
+      counts[nm] = (counts[nm]||0) + 1;
+    });
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  })();
+  const maxCount = leaderboard.length ? leaderboard[0][1] : 1;
+
+  const avgAcceptHours = items => {
+    const diffs = items.map(i => {
+      const tl = i.timeline||[];
+      if (tl.length<2) return null;
+      const accepted = tl.slice(1).find(t=>t.type==="update");
+      if (!accepted) return null;
+      const t0 = new Date((tl[0].time||"").replace(" ","T"));
+      const t1 = new Date((accepted.time||"").replace(" ","T"));
+      const hrs = (t1-t0)/3600000;
+      return isFinite(hrs) && hrs>=0 ? hrs : null;
+    }).filter(v=>v!=null);
+    if (!diffs.length) return null;
+    return diffs.reduce((a,b)=>a+b,0)/diffs.length;
+  };
+  const fmtHrs = h => h==null ? "—" : h<1 ? `${Math.round(h*60)}m` : h<48 ? `${h.toFixed(1)}h` : `${(h/24).toFixed(1)}d`;
+
+  const reportRows = [
+    { label:"5S Findings",     color:TEAL,      avg:avgAcceptHours(issues||[]) },
+    { label:"Gemba Walks",     color:"#8B5CF6", avg:avgAcceptHours(gembaItems||[]) },
+    { label:"Maintenance",     color:"#F59E0B", avg:avgAcceptHours(jobCards||[]) },
+    { label:"Quality Desk",    color:"#10B981", avg:avgAcceptHours(qualityItems||[]) },
+  ];
+
+  // ── Audit Log ──────────────────────────────────────────────
+  const [auditRows,     setAuditRows]     = useState([]);
+  const [auditLoading,  setAuditLoading]  = useState(false);
+
+  const loadAuditLog = async () => {
+    setAuditLoading(true);
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/audit_log?select=*&order=created_at.desc&limit=200`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` }
+      });
+      const rows = await res.json();
+      setAuditRows(Array.isArray(rows) ? rows : []);
+    } catch { setAuditRows([]); }
+    setAuditLoading(false);
+  };
+
+  useEffect(() => { if (tab==="auditlog") loadAuditLog(); }, [tab]);
 
   return (
     <Shell toast={toast}>
@@ -3300,8 +3429,8 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaIt
         </div>
 
         <div style={{ display:"flex", gap:14, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-          {[["overview","Overview"],["people","People"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
-            <button key={t} onClick={()=> t==="overview"||t==="people" ? setTab(t) : soon()}
+          {[["overview","Overview"],["people","People"],["reports","Reports"],["auditlog","Audit Log"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
+            <button key={t} onClick={()=> ["overview","people","reports","auditlog"].includes(t) ? setTab(t) : soon()}
               style={{ background:"none", border:"none",
                 borderBottom:`2px solid ${tab===t?SYSADMIN:"transparent"}`,
                 color:tab===t?SYSADMIN:C.inkLight, fontSize:12, fontWeight:700, whiteSpace:"nowrap",
@@ -3312,7 +3441,48 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaIt
         </div>
       </div>
 
-      {tab==="overview" && (
+      {tab==="overview" && editing && (
+        <div style={{ padding:"14px 16px" }}>
+          <button onClick={closeEdit} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:C.inkMid, fontSize:12, fontWeight:700, cursor:"pointer", padding:0, marginBottom:14, fontFamily:FONT }}>
+            <ArrowLeft size={14}/> Back to list
+          </button>
+          <div style={{ background:`${editing.modColor}18`, color:editing.modColor, fontSize:10, fontWeight:800, padding:"3px 10px", borderRadius:100, display:"inline-block", marginBottom:8 }}>{editing.mod} · {editing.raw.id}</div>
+          <div style={{ fontSize:16, fontWeight:900, color:C.ink, marginBottom:14 }}>{editing.title}</div>
+
+          <FLabel text="STATUS"/>
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            {["OPEN","IN PROGRESS","CLOSED"].map(s=>(
+              <button key={s} onClick={()=>setEditStatus(s)}
+                style={{ flex:1, padding:"9px 4px", borderRadius:9, border:`1.5px solid ${editStatus===s?SYSADMIN:C.border}`,
+                  background:editStatus===s?SYSADMIN:C.surfaceAlt, color:editStatus===s?"#fff":C.inkMid, fontSize:10, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
+                {s}
+              </button>
+            ))}
+          </div>
+          <FLabel text="DESCRIPTION"/>
+          <textarea style={{...sx.textarea,marginBottom:14}} rows={4} value={editDesc} onChange={e=>setEditDesc(e.target.value)}/>
+
+          <button style={{ ...sx.solidBtn, width:"100%", background:SYSADMIN, marginBottom:10 }} onClick={saveEdit}>
+            <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Pencil size={14}/> Save Changes</span>
+          </button>
+
+          {!confirmDel ? (
+            <button style={{ ...sx.ghostBtn, width:"100%", color:C.open, borderColor:`${C.open}55` }} onClick={()=>setConfirmDel(true)}>
+              <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Trash2 size={14}/> Delete Permanently</span>
+            </button>
+          ) : (
+            <div style={{ background:C.openBg, border:`1px solid ${C.open}44`, borderRadius:12, padding:14 }}>
+              <div style={{ fontSize:12, color:C.open, fontWeight:700, marginBottom:10 }}>Delete {editing.raw.id} permanently? This can't be undone.</div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button style={sx.ghostBtn} onClick={()=>setConfirmDel(false)}>Cancel</button>
+                <button style={{...sx.solidBtn, background:C.open}} onClick={deleteItemNow}>Yes, Delete</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab==="overview" && !editing && (
         <div style={{ padding:"14px 16px" }}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:16 }}>
             {[
@@ -3328,21 +3498,81 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaIt
             ))}
           </div>
 
-          <SHead label={`ALL OPEN ITEMS (${allOpen.length})`}/>
+          <SHead label={`ALL ITEMS (${allItems.length}) · TAP TO EDIT / DELETE / REOPEN`}/>
           <div style={{ display:"flex", flexDirection:"column", gap:8, padding:"0 0 8px" }}>
-            {allOpen.map((it,idx)=>(
-              <div key={idx} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px" }}>
+            {allItems.map((it,idx)=>(
+              <button key={idx} onClick={()=>openEdit(it)} style={{ textAlign:"left", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", cursor:"pointer", fontFamily:FONT }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
                   <div style={{ background:`${it.modColor}18`, color:it.modColor, fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>{it.mod}</div>
                   <div style={{ background:C.surfaceAlt, color:C.inkMid, fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>{it.status}</div>
-                  <div style={{ marginLeft:"auto", fontSize:9, color:C.inkLight, fontFamily:MONO }}>{(it.date||"").slice(0,10)}</div>
+                  <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:4 }}>
+                    <span style={{ fontSize:9, color:C.inkLight, fontFamily:MONO }}>{(it.date||"").slice(0,10)}</span>
+                    <Pencil size={12} color={C.inkLight}/>
+                  </div>
                 </div>
                 <div style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:2 }}>{it.title||"—"}</div>
                 <div style={{ fontSize:11, color:C.inkMid, lineHeight:1.5 }}>{it.desc}</div>
+              </button>
+            ))}
+            {allItems.length===0 && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>Nothing logged anywhere yet</div>}
+          </div>
+        </div>
+      )}
+
+      {tab==="reports" && (
+        <div style={{ padding:"14px 16px" }}>
+          <SHead label="AVERAGE TIME TO ACCEPT"/>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:20 }}>
+            {reportRows.map(r=>(
+              <div key={r.label} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>{r.label.toUpperCase()}</div>
+                <div style={{ fontSize:20, fontWeight:900, color:r.color, marginTop:4 }}>{fmtHrs(r.avg)}</div>
               </div>
             ))}
-            {allOpen.length===0 && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>Nothing open anywhere — all clear ✓</div>}
           </div>
+
+          <SHead label="MOST ITEMS ASSIGNED (ALL TIME, ALL MODULES)"/>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {leaderboard.map(([nm,ct])=>(
+              <div key={nm}>
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                  <span style={{ fontWeight:700, color:C.ink }}>{nm}</span>
+                  <span style={{ fontWeight:800, color:SYSADMIN }}>{ct}</span>
+                </div>
+                <div style={{ height:8, background:C.surfaceAlt, borderRadius:4, overflow:"hidden" }}>
+                  <div style={{ height:"100%", width:`${(ct/maxCount)*100}%`, background:SYSADMIN, borderRadius:4 }}/>
+                </div>
+              </div>
+            ))}
+            {leaderboard.length===0 && <div style={{ textAlign:"center", padding:"20px 0", color:C.inkLight, fontSize:12 }}>No assigned items yet</div>}
+          </div>
+        </div>
+      )}
+
+      {tab==="auditlog" && (
+        <div style={{ padding:"14px 16px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <SHead label={`AUDIT TRAIL (${auditRows.length})`}/>
+            <button onClick={loadAuditLog} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"6px 11px", fontSize:11, fontWeight:700, color:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
+              <RefreshCw size={13}/> Refresh
+            </button>
+          </div>
+          {auditLoading && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>Loading…</div>}
+          {!auditLoading && (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {auditRows.map(r=>(
+                <div key={r.id||r.created_at} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"9px 12px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                    <span style={{ fontSize:11, fontWeight:800, color:C.ink }}>{r.actor}</span>
+                    {r.module && <span style={{ fontSize:8, fontWeight:800, color:C.inkLight, background:C.surfaceAlt, padding:"1px 7px", borderRadius:100 }}>{r.module}</span>}
+                    <span style={{ marginLeft:"auto", fontSize:9, color:C.inkLight, fontFamily:MONO }}>{(r.created_at||"").replace("T"," ").slice(0,16)}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:C.inkMid }}>{r.action}</div>
+                </div>
+              ))}
+              {auditRows.length===0 && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>No audit entries yet</div>}
+            </div>
+          )}
         </div>
       )}
 
@@ -3632,9 +3862,13 @@ export default function App() {
       users={users}
       setUsers={setUsers}
       issues={issues}
+      setIssues={setIssues}
       gembaItems={gembaItems}
+      setGembaItems={setGembaItems}
       jobCards={jobCards}
+      setJobCards={setJobCards}
       qualityItems={qualityItems}
+      setQualityItems={setQualityItems}
     />
   );
 

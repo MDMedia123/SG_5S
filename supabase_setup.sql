@@ -41,9 +41,19 @@ create table if not exists public.app_users (
   created_at timestamptz not null default now()
 );
 
--- issues/gemba/jobcards/audits/complaints already have RLS enabled + a
--- "public read/write" policy from earlier setup — only app_users is new,
+-- Flat schema (not the {id,data,created_at} wrapper pattern) since audit_log
+-- rows are logged directly, not upserted/keyed by a record id.
+create table if not exists public.audit_log (
+  id bigint generated always as identity primary key,
+  actor text not null,
+  action text not null,
+  module text,
+  created_at timestamptz not null default now()
+);
+
+-- issues/gemba/jobcards/audits/complaints/app_users already have RLS enabled
+-- + a "public read/write" policy from earlier setup — only audit_log is new,
 -- so only it needs a policy (re-running create policy on the others would
 -- error with "already exists").
-alter table public.app_users enable row level security;
-create policy "public read/write" on public.app_users for all using (true) with check (true);
+alter table public.audit_log enable row level security;
+create policy "public read/write" on public.audit_log for all using (true) with check (true);
