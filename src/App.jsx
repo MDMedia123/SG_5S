@@ -3329,13 +3329,37 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
   const [editStatus, setEditStatus] = useState("OPEN");
   const [confirmDel, setConfirmDel] = useState(false);
 
-  const openEdit = it => { setEditing(it); setEditDesc(it.desc||""); setEditStatus(it.status); setConfirmDel(false); };
+  // Quality Desk items get full-field editing (department, resolver, etc.)
+  const [editCustomer, setEditCustomer] = useState("");
+  const [editProduct,  setEditProduct]  = useState("");
+  const [editDept,     setEditDept]     = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editPriority, setEditPriority] = useState("");
+  const [editOwner,    setEditOwner]    = useState("");
+
+  const openEdit = it => {
+    setEditing(it); setEditDesc(it.desc||""); setEditStatus(it.status); setConfirmDel(false);
+    if (it.mod==="Quality") {
+      setEditCustomer(it.raw.customerName||"");
+      setEditProduct(it.raw.product||"");
+      setEditDept(it.raw.department||"");
+      setEditCategory(it.raw.category||"");
+      setEditPriority(it.raw.priority||"MEDIUM");
+      setEditOwner(it.raw.owner||"");
+    }
+  };
   const closeEdit = () => { setEditing(null); setConfirmDel(false); };
 
   const saveEdit = () => {
     const { mod, raw } = editing;
     const descKey = MOD_DESCKEY[mod];
-    const updated = { ...raw, [descKey]: editDesc, status: editStatus };
+    let updated = { ...raw, [descKey]: editDesc, status: editStatus };
+    if (mod==="Quality") {
+      const m = users.find(u=>u.id===editOwner) || users.find(u=>u.id===raw.owner);
+      updated = { ...updated, customerName:editCustomer, product:editProduct, department:editDept,
+        category:editCategory, priority:editPriority,
+        owner:m?.id||raw.owner, ownerName:m?.name||raw.ownerName, ownerInit:m?.initials||raw.ownerInit, ownerColor:m?.color||raw.ownerColor };
+    }
     MOD_SETTER[mod](prev => prev.map(x => x.id===raw.id ? updated : x));
     sbUpsert(MOD_TABLE[mod], { id: updated.id, data: updated, created_at: updated[MOD_DATEKEY[mod]] });
     logAudit(currentUser.name, `${mod} ${raw.id} edited by admin (status → ${editStatus})`, "Admin");
@@ -3450,6 +3474,43 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
           </button>
           <div style={{ background:`${editing.modColor}18`, color:editing.modColor, fontSize:10, fontWeight:800, padding:"3px 10px", borderRadius:100, display:"inline-block", marginBottom:8 }}>{editing.mod} · {editing.raw.id}</div>
           <div style={{ fontSize:16, fontWeight:900, color:C.ink, marginBottom:14 }}>{editing.title}</div>
+
+          {editing.mod==="Quality" && (
+            <>
+              <FLabel text="CUSTOMER NAME"/>
+              <input style={{...sx.select,marginBottom:12}} value={editCustomer} onChange={e=>setEditCustomer(e.target.value)}/>
+              <FLabel text="PRODUCT / BATCH"/>
+              <input style={{...sx.select,marginBottom:12}} value={editProduct} onChange={e=>setEditProduct(e.target.value)}/>
+              <FLabel text="DEPARTMENT"/>
+              <select style={{...sx.select,marginBottom:12}} value={editDept} onChange={e=>setEditDept(e.target.value)}>
+                <option value="">— Select department —</option>
+                {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+              </select>
+              <FLabel text="CATEGORY"/>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+                {QUAL_CATS.map(c=>(
+                  <button key={c.key} onClick={()=>setEditCategory(c.key)}
+                    style={{flex:"1 1 30%",padding:"8px 4px",background:editCategory===c.key?c.color:C.surfaceAlt,border:`1.5px solid ${editCategory===c.key?c.color:C.border}`,borderRadius:10,cursor:"pointer"}}>
+                    <span style={{fontSize:9,fontWeight:800,color:editCategory===c.key?"#fff":c.color}}>{c.label}</span>
+                  </button>
+                ))}
+              </div>
+              <FLabel text="PRIORITY"/>
+              <div style={{display:"flex",gap:8,marginBottom:12}}>
+                {["LOW","MEDIUM","HIGH","CRITICAL"].map(p=>(
+                  <button key={p} onClick={()=>setEditPriority(p)}
+                    style={{flex:1,padding:"9px 4px",borderRadius:9,border:`1.5px solid ${qualPriColor(p)}`,background:editPriority===p?`linear-gradient(135deg,${qualPriColor(p)},${qualPriColor(p)}aa)`:"transparent",color:editPriority===p?"#fff":qualPriColor(p),fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <FLabel text="RESOLVER / OWNER"/>
+              <select style={{...sx.select,marginBottom:12}} value={editOwner} onChange={e=>setEditOwner(e.target.value)}>
+                <option value="">— Select owner —</option>
+                {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </>
+          )}
 
           <FLabel text="STATUS"/>
           <div style={{ display:"flex", gap:8, marginBottom:12 }}>
