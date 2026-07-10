@@ -35,8 +35,15 @@ create table if not exists public.complaints (
   created_at timestamptz not null default now()
 );
 
--- issues/gemba/jobcards/audits already have RLS enabled + a "public read/write"
--- policy from earlier setup — only complaints is new, so only it needs a policy
--- (re-running create policy on the others would error with "already exists").
-alter table public.complaints enable row level security;
-create policy "public read/write" on public.complaints for all using (true) with check (true);
+create table if not exists public.app_users (
+  id text primary key,
+  data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+-- issues/gemba/jobcards/audits/complaints already have RLS enabled + a
+-- "public read/write" policy from earlier setup — only app_users is new,
+-- so only it needs a policy (re-running create policy on the others would
+-- error with "already exists").
+alter table public.app_users enable row level security;
+create policy "public read/write" on public.app_users for all using (true) with check (true);

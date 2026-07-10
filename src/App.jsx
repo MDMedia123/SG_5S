@@ -3,6 +3,7 @@ import {
   ArrowLeft, Home as HomeIcon, AlertTriangle, ArrowRight, FileText, Clock, RefreshCw,
   Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
   Sparkles, Camera, Paperclip, Footprints, Wrench, ClipboardCheck, PersonStanding, ShieldCheck,
+  Settings, UserPlus, HelpCircle, Users as UsersIcon,
 } from "lucide-react";
 
 // ── SUPABASE CLIENT ────────────────────────────────────────
@@ -63,7 +64,7 @@ const C = {
 };
 
 // ── TEAM ──────────────────────────────────────────────────
-const USERS = [
+const SEED_USERS = [
   { id:"rajen",    name:"Rajen Padayachee",     dept:"Litho Print",          role:"Manager",    title:"Litho Print Manager",         initials:"RP", color:TEAL       },
   { id:"mark",     name:"Mark O'Brien",          dept:"Finishing",            role:"Manager",    title:"Finishing Manager",           initials:"MO", color:"#F59E0B"  },
   { id:"riaan",    name:"Riaan Roux",            dept:"Punching",             role:"Manager",    title:"Punching Manager",            initials:"RR", color:"#EF4444"  },
@@ -72,7 +73,7 @@ const USERS = [
   { id:"desigran", name:"Desigran Moodley",      dept:"Repro",                role:"Supervisor", title:"Repro Supervisor",            initials:"DM", color:"#F59E0B"  },
   { id:"manoj",    name:"Manoj Singh",           dept:"Corrugating",          role:"Supervisor", title:"Corrugating Supervisor",      initials:"MS", color:TEAL       },
   { id:"yougash",  name:"Yougashree Padayachee", dept:"Logistics",            role:"Manager",    title:"Logistics Manager",          initials:"YP", color:"#EC4899"  },
-  { id:"michael",  name:"Michael Downes",        dept:"Innovation & Quality", role:"Auditor",    title:"Innovation/Quality Manager",  initials:"MD", color:TEAL       },
+  { id:"michael",  name:"Michael Downes",        dept:"Innovation & Quality", role:"Auditor",    title:"Innovation/Quality Manager",  initials:"MD", color:TEAL, isSystemAdmin:true },
   { id:"clifford", name:"Clifford Barnes",        dept:"Quality Assurance",    role:"Auditor",    title:"QA Controller",               initials:"CB", color:"#64748B"  },
   { id:"richard",  name:"Richard Downes",         dept:"Executive",            role:"Admin",      title:"Managing Director",           initials:"RD", color:SGREY      },
   { id:"jason",    name:"Jason Staats",           dept:"Finance",              role:"Admin",      title:"Financial Director",          initials:"JS", color:SGREY      },
@@ -400,9 +401,9 @@ const sx = {
 // LOGIN SCREEN
 // ─────────────────────────────────────────────────────────
 
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, users }) {
   const [sel, setSel] = useState("");
-  const user = USERS.find(u => u.id === sel);
+  const user = users.find(u => u.id === sel);
 
   return (
     <div style={{ background:"#EDEFF3", minHeight:"100vh", display:"flex",
@@ -466,7 +467,7 @@ function LoginScreen({ onLogin }) {
             marginBottom:14, outline:"none" }}
             value={sel} onChange={e => setSel(e.target.value)}>
             <option value="" style={{ color:"#8992A3", background:"#F0F2F5" }}>— Select your name —</option>
-            {[...USERS].sort((a,b) => a.name.localeCompare(b.name)).map(u => (
+            {[...users].sort((a,b) => a.name.localeCompare(b.name)).map(u => (
               <option key={u.id} value={u.id} style={{ color:"#1E2025", background:"#F0F2F5" }}>
                 {u.name}
               </option>
@@ -513,7 +514,7 @@ function LoginScreen({ onLogin }) {
 // MAIN APP
 // ─────────────────────────────────────────────────────────
 
-function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome, issues, setIssues }) {
+function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome, issues, setIssues, users }) {
   const [tab,          setTab]          = useState("board");
   // issues/setIssues passed from App root for shared badge counts
   const [selected,     setSelected]     = useState(null);
@@ -630,7 +631,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   const handleRaise = async () => {
     if (!desc || !dept || !mgr) { showToast("⚠ Please fill description, department and manager"); return; }
     setGenning(true);
-    const m   = USERS.find(u => u.id === mgr);
+    const m   = users.find(u => u.id === mgr);
     const cat = SCATS.find(x => x.key === (scat || engineResult?.scat || "set")) || SCATS[1];
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     const band = engineBand || SEVERITY_BANDS[0];
@@ -1001,7 +1002,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
             <select style={{ ...sx.select, flex:1 }} value={mgr}
               onChange={e => setMgr(e.target.value)}>
               <option value="">— Manager —</option>
-              {USERS.filter(u => u.role==="Manager"||u.role==="Supervisor").map(m => (
+              {users.filter(u => u.role==="Manager"||u.role==="Supervisor").map(m => (
                 <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
@@ -1863,7 +1864,7 @@ Write a concise action note (2-3 sentences): describe the finding, the risk or i
   } catch { return ""; }
 }
 
-function GembaModule({ currentUser, onBack, items, setItems }) {
+function GembaModule({ currentUser, onBack, items, setItems, users }) {
   const [tab,      setTab]      = useState("board");
   // items/setItems passed from App root for shared badge counts
   const [selected, setSelected] = useState(null);
@@ -1911,7 +1912,7 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
   const handleRaise = async () => {
     if (!desc||!area||!owner||!cat) { showToast("⚠ Please fill all fields"); return; }
     setGenning(true);
-    const m   = USERS.find(u=>u.id===owner);
+    const m   = users.find(u=>u.id===owner);
     const c   = getCat(cat);
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     let note  = await gembaAI(desc, c.label, area, m.name);
@@ -2095,7 +2096,7 @@ function GembaModule({ currentUser, onBack, items, setItems }) {
         <FLabel text="ASSIGN OWNER"/>
         <select style={{...sx.select,marginBottom:4}} value={owner} onChange={e=>setOwner(e.target.value)}>
           <option value="">— Select owner —</option>
-          {[...USERS].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
         <FLabel text="CATEGORY"/>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
@@ -2819,7 +2820,7 @@ const SEED_COMPLAINTS = [
   },
 ];
 
-function QualityDeskPage({ currentUser, onBack, items, setItems }) {
+function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
   const [tab,      setTab]      = useState("board");
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
@@ -2864,7 +2865,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
   const handleRaise = () => {
     if (!customerName || !department || !category || !owner || !desc) { showToast("⚠ Please fill customer, department, category, owner and description"); return; }
     setSaving(true);
-    const m = USERS.find(u=>u.id===owner);
+    const m = users.find(u=>u.id===owner);
     const now = new Date().toISOString().slice(0,16).replace("T"," ");
     const item = {
       id:`QC-${String(items.length+1).padStart(3,"0")}`,
@@ -2917,7 +2918,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
   if (selected) {
     const s = selected;
     const c = getQualCat(s.category);
-    const isOwner = USERS.find(u=>u.id===s.owner)?.name === currentUser.name;
+    const isOwner = users.find(u=>u.id===s.owner)?.name === currentUser.name;
     return (
       <Shell toast={toast}>
         <div style={{background:C.surface, borderBottom:`1px solid ${C.border}`}}>
@@ -2942,7 +2943,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
           {[
             { label:"Status",     val:s.status,   color:statColor(s.status) },
             { label:"Priority",   val:s.priority, color:qualPriColor(s.priority) },
-            { label:"Owner",      val:USERS.find(u=>u.id===s.owner)?.name || "—", color:C.inkMid },
+            { label:"Owner",      val:users.find(u=>u.id===s.owner)?.name || "—", color:C.inkMid },
             { label:"Department", val:s.department, color:C.inkMid },
           ].map(m => (
             <div key={m.label} style={{background:C.surfaceAlt,borderRadius:10,padding:"9px 12px",border:`1px solid ${C.border}`}}>
@@ -3046,7 +3047,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
         <FLabel text="ASSIGN OWNER"/>
         <select style={{...sx.select,marginBottom:4}} value={owner} onChange={e=>setOwner(e.target.value)}>
           <option value="">— Select owner —</option>
-          {[...USERS].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
         <FLabel text="COMPLAINT DETAIL"/>
         <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the customer's complaint…"/>
@@ -3062,7 +3063,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
   const openCt   = items.filter(i=>i.status==="OPEN").length;
   const progCt   = items.filter(i=>i.status==="IN PROGRESS").length;
   const closedCt = items.filter(i=>i.status==="CLOSED").length;
-  let visible = myOnly ? items.filter(i=>USERS.find(u=>u.id===i.owner)?.name===currentUser.name) : items;
+  let visible = myOnly ? items.filter(i=>users.find(u=>u.id===i.owner)?.name===currentUser.name) : items;
   if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
   if (catFilter) visible = visible.filter(i=>i.category===catFilter);
   return (
@@ -3163,7 +3164,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
       <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
         {visible.map((item,idx)=>{
           const c = getQualCat(item.category);
-          const isOwner = USERS.find(u=>u.id===item.owner)?.name === currentUser.name;
+          const isOwner = users.find(u=>u.id===item.owner)?.name === currentUser.name;
           return (
             <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
               <button style={{width:"100%",background:C.surface,border:`1px solid ${isOwner&&item.status==="OPEN"?`${C.open}55`:C.border}`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",fontFamily:FONT,display:"flex",gap:12,boxShadow:C.shadow}} onClick={()=>setSelected(item)}>
@@ -3187,7 +3188,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <Av txt={item.ownerInit} color={item.ownerColor} size={22}/>
-                      <span style={{fontSize:11,color:C.inkMid}}>{USERS.find(u=>u.id===item.owner)?.name}</span>
+                      <span style={{fontSize:11,color:C.inkMid}}>{users.find(u=>u.id===item.owner)?.name}</span>
                     </div>
                     <span style={{fontSize:10,color:C.inkLight}}>{item.department}</span>
                   </div>
@@ -3225,9 +3226,178 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
 }
 
 // ─────────────────────────────────────────────────────────
+// SYSTEM ADMIN — full visibility + roster management
+// ─────────────────────────────────────────────────────────
+const SYSADMIN = "#334155";
+const ROLES = ["Manager","Supervisor","Auditor","Admin"];
+
+function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, gembaItems, jobCards, qualityItems }) {
+  const [tab,   setTab]   = useState("overview");
+  const [toast, setToast] = useState("");
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
+  const soon = () => showToast("This tab isn't built yet — coming soon");
+
+  // add person
+  const [name,   setName]   = useState("");
+  const [dept,   setDept]   = useState("");
+  const [role,   setRole]   = useState("Manager");
+  const [title,  setTitle]  = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const PALETTE = ["#1B9BAA","#EF4444","#F59E0B","#10B981","#8B5CF6","#EC4899","#0EA5E9","#84CC16","#D946EF","#F43F5E"];
+
+  const handleAddPerson = () => {
+    if (!name || !dept || !title) { showToast("⚠ Please fill name, department and title"); return; }
+    setSaving(true);
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g,"").slice(0,20) || `user${users.length+1}`;
+    if (users.some(u=>u.id===id)) { showToast("⚠ Someone with a similar name already exists"); setSaving(false); return; }
+    const initials = name.split(" ").filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
+    const color = PALETTE[users.length % PALETTE.length];
+    const person = { id, name, dept, role, title, initials, color };
+    setUsers(prev => [...prev, person]);
+    sbUpsert("app_users", { id, data:person, created_at:new Date().toISOString() });
+    setSaving(false);
+    showToast(`✓ ${name} added`);
+    setName(""); setDept(""); setRole("Manager"); setTitle("");
+  };
+
+  // ── Overview ─────────────────────────────────────────────
+  const openIssues  = (issues||[]).filter(i=>i.status!=="CLOSED");
+  const openGemba   = (gembaItems||[]).filter(i=>i.status!=="CLOSED");
+  const openJobs    = (jobCards||[]).filter(i=>i.status!=="CLOSED");
+  const openQual    = (qualityItems||[]).filter(i=>i.status!=="CLOSED");
+
+  const allOpen = [
+    ...openIssues.map(i=>({ mod:"5S",          modColor:TEAL,     title:i.dept,          desc:i.desc,        status:i.status, date:i.raisedAt })),
+    ...openGemba.map(i=>({  mod:"Gemba",       modColor:"#8B5CF6",title:i.area,          desc:i.desc,        status:i.status, date:i.raisedAt })),
+    ...openJobs.map(i=>({   mod:"Maintenance", modColor:"#F59E0B",title:i.title,         desc:i.description, status:i.status, date:i.initiatedAt })),
+    ...openQual.map(i=>({   mod:"Quality",     modColor:"#10B981",title:i.customerName,  desc:i.description, status:i.status, date:i.raisedAt })),
+  ].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  return (
+    <Shell toast={toast}>
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={onBack} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+              border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={18} color={C.ink}/>
+            </button>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${SYSADMIN}14`,
+              border:`1.5px solid ${SYSADMIN}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Settings size={18} color={SYSADMIN}/>
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.ink }}>System Admin</div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>FULL SYSTEM VISIBILITY</div>
+            </div>
+          </div>
+          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+            <HomeIcon size={14}/> Home
+          </button>
+        </div>
+
+        <div style={{ display:"flex", gap:14, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+          {[["overview","Overview"],["people","People"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
+            <button key={t} onClick={()=> t==="overview"||t==="people" ? setTab(t) : soon()}
+              style={{ background:"none", border:"none",
+                borderBottom:`2px solid ${tab===t?SYSADMIN:"transparent"}`,
+                color:tab===t?SYSADMIN:C.inkLight, fontSize:12, fontWeight:700, whiteSpace:"nowrap",
+                padding:"0 0 10px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab==="overview" && (
+        <div style={{ padding:"14px 16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:16 }}>
+            {[
+              { label:"5S",          val:openIssues.length, color:TEAL },
+              { label:"Gemba",       val:openGemba.length,  color:"#8B5CF6" },
+              { label:"Maintenance", val:openJobs.length,   color:"#F59E0B" },
+              { label:"Quality",     val:openQual.length,   color:"#10B981" },
+            ].map(st=>(
+              <div key={st.label} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 6px", textAlign:"center" }}>
+                <div style={{ fontSize:20, fontWeight:900, color:st.color }}>{st.val}</div>
+                <div style={{ fontSize:8, color:C.inkLight, letterSpacing:0.5, marginTop:3 }}>{st.label} OPEN</div>
+              </div>
+            ))}
+          </div>
+
+          <SHead label={`ALL OPEN ITEMS (${allOpen.length})`}/>
+          <div style={{ display:"flex", flexDirection:"column", gap:8, padding:"0 0 8px" }}>
+            {allOpen.map((it,idx)=>(
+              <div key={idx} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                  <div style={{ background:`${it.modColor}18`, color:it.modColor, fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>{it.mod}</div>
+                  <div style={{ background:C.surfaceAlt, color:C.inkMid, fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100 }}>{it.status}</div>
+                  <div style={{ marginLeft:"auto", fontSize:9, color:C.inkLight, fontFamily:MONO }}>{(it.date||"").slice(0,10)}</div>
+                </div>
+                <div style={{ fontSize:13, fontWeight:800, color:C.ink, marginBottom:2 }}>{it.title||"—"}</div>
+                <div style={{ fontSize:11, color:C.inkMid, lineHeight:1.5 }}>{it.desc}</div>
+              </div>
+            ))}
+            {allOpen.length===0 && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>Nothing open anywhere — all clear ✓</div>}
+          </div>
+        </div>
+      )}
+
+      {tab==="people" && (
+        <div style={{ padding:"14px 16px" }}>
+          <SHead label="ADD PERSON"/>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16 }}>
+            <FLabel text="FULL NAME"/>
+            <input style={{...sx.select,marginBottom:4}} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Thabo Nkosi"/>
+            <FLabel text="DEPARTMENT"/>
+            <input style={{...sx.select,marginBottom:4}} value={dept} onChange={e=>setDept(e.target.value)} placeholder="e.g. Warehouse"/>
+            <FLabel text="ROLE"/>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:4 }}>
+              {ROLES.map(r=>(
+                <button key={r} onClick={()=>setRole(r)}
+                  style={{ flex:"1 1 40%", padding:"8px 4px", borderRadius:9, border:`1.5px solid ${role===r?SYSADMIN:C.border}`,
+                    background:role===r?SYSADMIN:C.surfaceAlt, color:role===r?"#fff":C.inkMid, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <FLabel text="TITLE"/>
+            <input style={{...sx.select,marginBottom:10}} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Warehouse Supervisor"/>
+            <button style={{ width:"100%", padding:"13px", background:name&&dept&&title?SYSADMIN:C.surfaceAlt,
+              border:"none", borderRadius:11, color:name&&dept&&title?"#fff":C.inkLight, fontSize:14, fontWeight:800,
+              letterSpacing:1, fontFamily:FONT, cursor:"pointer", opacity:saving?0.65:1,
+              display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+              onClick={handleAddPerson} disabled={saving}>
+              <UserPlus size={16}/> Add Person
+            </button>
+          </div>
+
+          <SHead label={`ALL PEOPLE (${users.length})`}/>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=>(
+              <div key={u.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+                <Av txt={u.initials} color={u.color} size={32}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:C.ink }}>{u.name} {u.isSystemAdmin && <span style={{fontSize:8,fontWeight:800,color:SYSADMIN,background:`${SYSADMIN}18`,padding:"1px 7px",borderRadius:100,marginLeft:4}}>SYSTEM ADMIN</span>}</div>
+                  <div style={{ fontSize:10, color:C.inkLight, marginTop:1 }}>{u.title} · {u.dept}</div>
+                </div>
+                <div style={{ fontSize:9, color:C.inkMid, background:C.surfaceAlt, padding:"2px 8px", borderRadius:100 }}>{u.role}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
 // FPA HOME SCREEN — S&G OpsApp
 // ─────────────────────────────────────────────────────────
-function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards, qualityItems }) {
+function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards, qualityItems, users }) {
   const [showMyLog, setShowMyLog] = useState(false);
 
   const now  = new Date();
@@ -3238,7 +3408,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   const my5sOpen    = (issues    ||[]).filter(i => i.manager===currentUser.name && i.status==="OPEN").length;
   const myGembaOpen = (gembaItems||[]).filter(i => i.owner  ===currentUser.name && i.status==="OPEN").length;
   const myMaintOpen = (jobCards  ||[]).filter(i => i.maintAdmin && MAINT_ADMINS.find(a=>a.id===i.maintAdmin)?.name===currentUser.name && i.status!=="CLOSED").length;
-  const myQualOpen  = (qualityItems||[]).filter(i => USERS.find(u=>u.id===i.owner)?.name===currentUser.name && i.status!=="CLOSED").length;
+  const myQualOpen  = (qualityItems||[]).filter(i => users.find(u=>u.id===i.owner)?.name===currentUser.name && i.status!=="CLOSED").length;
   const myTotalOpen = my5sOpen + myGembaOpen;
 
   // All my open items combined for My Log
@@ -3250,6 +3420,9 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
     { id:"gemba",       Icon:PersonStanding,  label:"Gemba Walks",     desc:"Floor observations · Action tracking",   color:"#8B5CF6", status:"LIVE",        badge:myGembaOpen },
     { id:"maintenance", Icon:Wrench,          label:"Maintenance",     desc:"Job cards · Planned maintenance",         color:"#F59E0B", status:"LIVE",        badge:myMaintOpen },
     { id:"quality",     Icon:ShieldCheck,     label:"Quality Desk",    desc:"Complaints · Holds · CAPA",               color:"#10B981", status:"LIVE",        badge:myQualOpen  },
+    ...(currentUser.isSystemAdmin ? [
+      { id:"sysadmin",  Icon:Settings,        label:"System Admin",    desc:"Full visibility · People · Settings",     color:"#334155", status:"LIVE",        badge:0 },
+    ] : []),
   ];
 
   // MY LOG overlay
@@ -3419,8 +3592,23 @@ export default function App() {
   const [gembaItems,   setGembaItems]   = useState(SEED_GEMBA);
   const [jobCards,     setJobCards]     = useState(SEED_JOBCARDS);
   const [qualityItems, setQualityItems] = useState(SEED_COMPLAINTS);
+  const [users,        setUsers]        = useState(SEED_USERS);
 
-  if (!currentUser) return <LoginScreen onLogin={u => { setCurrentUser(u); setModule(null); }}/>;
+  useEffect(() => {
+    (async () => {
+      const rows = await sbFetch("app_users");
+      if (Array.isArray(rows) && rows.length > 0) {
+        setUsers(prev => {
+          const byId = {};
+          prev.forEach(u => { byId[u.id] = u; });
+          rows.forEach(r => { byId[r.data.id] = r.data; });
+          return Object.values(byId);
+        });
+      }
+    })();
+  }, []);
+
+  if (!currentUser) return <LoginScreen onLogin={u => { setCurrentUser(u); setModule(null); }} users={users}/>;
 
   if (module === "5s") return (
     <MainApp
@@ -3431,11 +3619,24 @@ export default function App() {
       onHome={() => setModule(null)}
       issues={issues}
       setIssues={setIssues}
+      users={users}
     />
   );
-  if (module === "gemba")       return <GembaModule currentUser={currentUser} onBack={()=>setModule(null)} items={gembaItems} setItems={setGembaItems}/>;
+  if (module === "gemba")       return <GembaModule currentUser={currentUser} onBack={()=>setModule(null)} items={gembaItems} setItems={setGembaItems} users={users}/>;
   if (module === "maintenance") return <MaintenancePage currentUser={currentUser} onBack={()=>setModule(null)} items={jobCards} setItems={setJobCards}/>;
-  if (module === "quality")     return <QualityDeskPage currentUser={currentUser} onBack={()=>setModule(null)} items={qualityItems} setItems={setQualityItems}/>;
+  if (module === "quality")     return <QualityDeskPage currentUser={currentUser} onBack={()=>setModule(null)} items={qualityItems} setItems={setQualityItems} users={users}/>;
+  if (module === "sysadmin")    return (
+    <SystemAdminPage
+      currentUser={currentUser}
+      onBack={()=>setModule(null)}
+      users={users}
+      setUsers={setUsers}
+      issues={issues}
+      gembaItems={gembaItems}
+      jobCards={jobCards}
+      qualityItems={qualityItems}
+    />
+  );
 
   return (
     <FPAHome
@@ -3446,6 +3647,7 @@ export default function App() {
       gembaItems={gembaItems}
       jobCards={jobCards}
       qualityItems={qualityItems}
+      users={users}
     />
   );
 }
