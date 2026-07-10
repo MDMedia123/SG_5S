@@ -2789,36 +2789,435 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
 // ─────────────────────────────────────────────────────────
 // QUALITY DESK LANDING PAGE
 // ─────────────────────────────────────────────────────────
-function QualityDeskPage({ currentUser, onBack }) {
-  return (
-    <Shell toast="">
-      <div style={{background:"linear-gradient(135deg,#10B981,#059669)",padding:"20px 16px 24px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <button style={sx.backBtnW} onClick={onBack}>← Home</button>
-        </div>
-        <div style={{fontSize:22,fontWeight:900,color:"#fff",marginBottom:4}}>✅ Quality Desk</div>
-        <div style={{fontSize:11,color:"rgba(255,255,255,0.7)"}}>Findings · Customer Complaints · Holds · CAPA</div>
-      </div>
-      <div style={{padding:"24px 16px"}}>
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",textAlign:"center",marginBottom:16}}>
-          <div style={{fontSize:40,marginBottom:12}}>✅</div>
-          <div style={{fontSize:16,fontWeight:900,color:C.ink,marginBottom:8}}>Coming Soon</div>
-          <div style={{fontSize:13,color:C.inkMid,lineHeight:1.6}}>The Quality Desk will manage customer complaints, internal Findings, product holds, root cause analysis and corrective action plans linked to your quality standards.</div>
-        </div>
-        {[
-          {icon:"📋",label:"Customer Complaints",desc:"Log and track customer quality issues"},
-          {icon:"🔴",label:"Product Holds",desc:"Quarantine and disposition management"},
-          {icon:"🔍",label:"Root Cause Analysis",desc:"5-Why and Fishbone tools"},
-          {icon:"📈",label:"CAPA Tracking",desc:"Corrective and preventive actions"},
-        ].map(item=>(
-          <div key={item.label} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10,display:"flex",alignItems:"center",gap:12,opacity:0.6}}>
-            <span style={{fontSize:24}}>{item.icon}</span>
-            <div>
-              <div style={{fontSize:13,fontWeight:800,color:C.ink}}>{item.label}</div>
-              <div style={{fontSize:11,color:C.inkLight,marginTop:2}}>{item.desc}</div>
-            </div>
-            <div style={{marginLeft:"auto",fontSize:10,color:C.inkLight,background:C.surfaceAlt,padding:"3px 10px",borderRadius:100}}>PLANNED</div>
+const QUAL_CATS = [
+  { key:"product",   label:"Product Quality",    color:"#EF4444", bg:"rgba(239,68,68,0.10)"  },
+  { key:"packaging", label:"Packaging",          color:"#F59E0B", bg:"rgba(245,158,11,0.10)" },
+  { key:"delivery",  label:"Delivery/Logistics", color:"#8B5CF6", bg:"rgba(139,92,246,0.10)" },
+  { key:"docs",      label:"Documentation",      color:TEAL,      bg:`${TEAL}18`             },
+  { key:"other",     label:"Other",              color:"#64748B", bg:"rgba(100,116,139,0.10)"},
+];
+const qualPriColor = p => p==="CRITICAL"?"#9333EA":p==="HIGH"?C.open:p==="MEDIUM"?C.prog:C.teal;
+const getQualCat = k => QUAL_CATS.find(c=>c.key===k) || QUAL_CATS[4];
+
+const SEED_COMPLAINTS = [
+  {
+    id:"QC-001",
+    customerName:"Acme Retail Group",
+    product:"500ml corrugated shipper — batch B4521",
+    department:"Litho Print",
+    category:"product",
+    priority:"HIGH",
+    description:"Ink transfer on ~12% of units in latest shipment, print smudging visible on branding panel.",
+    raisedBy:"Michael Downes", raisedAt:"2026-06-02 09:10",
+    owner:"sibusiso", ownerInit:"SN", ownerColor:"#10B981",
+    status:"OPEN",
+    rootCause:"", correctiveAction:"", closeEvidence:null, comments:[],
+    timeline:[
+      { time:"2026-06-02 09:10", actor:"Michael Downes", action:"Complaint logged — Acme Retail Group", type:"raise" },
+      { time:"2026-06-02 09:15", actor:"Michael Downes", action:"Assigned to Sibusiso Ngubane", type:"update" },
+    ],
+  },
+];
+
+function QualityDeskPage({ currentUser, onBack, items, setItems }) {
+  const [tab,      setTab]      = useState("board");
+  const [selected, setSelected] = useState(null);
+  const [toast,    setToast]    = useState("");
+  const [myOnly,      setMyOnly]      = useState(false);
+  const [filter,      setFilter]      = useState("ALL");
+  const [catFilter,   setCatFilter]   = useState("");
+  const [showCatMenu, setShowCatMenu] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const rows = await sbFetch("complaints");
+      if (Array.isArray(rows) && rows.length > 0) setItems(rows.map(r => r.data));
+    })();
+  }, []);
+
+  // raise
+  const [customerName, setCustomerName] = useState("");
+  const [product,      setProduct]      = useState("");
+  const [department,   setDepartment]   = useState("");
+  const [category,     setCategory]     = useState("");
+  const [priority,     setPriority]     = useState("MEDIUM");
+  const [owner,        setOwner]        = useState("");
+  const [desc,         setDesc]         = useState("");
+  const [saving,       setSaving]       = useState(false);
+
+  // close-out
+  const [rootCause,        setRootCause]        = useState("");
+  const [correctiveAction, setCorrectiveAction] = useState("");
+  const [newComment,       setNewComment]       = useState("");
+
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
+  const statColor = s => s==="CLOSED"?C.closed:s==="IN PROGRESS"?"#2563EB":C.open;
+  const statBg    = s => s==="CLOSED"?C.closedBg:s==="IN PROGRESS"?"#DBEAFE":C.openBg;
+  const soon      = () => showToast("This tab isn't built yet — coming soon");
+
+  const persist = updated => {
+    setItems(p => p.map(i => i.id===updated.id ? updated : i));
+    if (selected?.id===updated.id) setSelected(updated);
+    sbUpsert("complaints", { id:updated.id, data:updated, created_at:updated.raisedAt });
+  };
+
+  const handleRaise = () => {
+    if (!customerName || !department || !category || !owner || !desc) { showToast("⚠ Please fill customer, department, category, owner and description"); return; }
+    setSaving(true);
+    const m = USERS.find(u=>u.id===owner);
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const item = {
+      id:`QC-${String(items.length+1).padStart(3,"0")}`,
+      customerName, product, department, category, priority, description:desc,
+      raisedBy:currentUser.name, raisedAt:now,
+      owner, ownerInit:m.initials, ownerColor:m.color,
+      status:"OPEN", rootCause:"", correctiveAction:"", closeEvidence:null, comments:[],
+      timeline:[
+        { time:now, actor:currentUser.name, action:`Complaint logged — ${customerName}`, type:"raise" },
+        { time:now, actor:currentUser.name, action:`Assigned to ${m.name}`, type:"update" },
+      ],
+    };
+    setItems(p => [item, ...p]);
+    sbUpsert("complaints", { id:item.id, data:item, created_at:now });
+    setSaving(false);
+    showToast(`✓ ${item.id} logged — ${m.name} notified`);
+    setCustomerName(""); setProduct(""); setDepartment(""); setCategory(""); setPriority("MEDIUM"); setOwner(""); setDesc("");
+    setTimeout(() => setTab("board"), 500);
+  };
+
+  const updateStatus = (status) => {
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const upd = { time:now, actor:currentUser.name, action:`Status → ${status}`, type:"update" };
+    const updated = { ...selected, status, timeline:[...selected.timeline, upd] };
+    persist(updated);
+    showToast(`✓ ${selected.id} updated`);
+  };
+
+  const closeComplaint = () => {
+    if (!correctiveAction) { showToast("⚠ Add a corrective action before closing"); return; }
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = {
+      ...selected, rootCause, correctiveAction, status:"CLOSED",
+      closeEvidence:{ note:correctiveAction },
+      timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:"Complaint closed — CAPA recorded", type:"update" }],
+    };
+    persist(updated);
+    showToast(`✓ ${selected.id} closed`);
+  };
+
+  const postComment = () => {
+    if (!newComment.trim()) return;
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = { ...selected, comments:[...(selected.comments||[]), { time:now, actor:currentUser.name, text:newComment.trim() }] };
+    persist(updated);
+    setNewComment("");
+  };
+
+  // ── Detail view ──────────────────────────────────────────
+  if (selected) {
+    const s = selected;
+    const c = getQualCat(s.category);
+    const isOwner = USERS.find(u=>u.id===s.owner)?.name === currentUser.name;
+    return (
+      <Shell toast={toast}>
+        <div style={{background:C.surface, borderBottom:`1px solid ${C.border}`}}>
+          <div style={{display:"flex",alignItems:"center",padding:"16px 16px 0",gap:10}}>
+            <button onClick={()=>setSelected(null)} style={{ width:36, height:36, borderRadius:9,
+              background:C.surface, border:`1px solid ${C.border}`, display:"flex", alignItems:"center",
+              justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={16} color={C.ink}/>
+            </button>
+            <div style={{marginLeft:"auto",background:C.surfaceAlt,borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:C.inkMid,fontFamily:MONO}}>{s.id}</div>
           </div>
+          <div style={{padding:"14px 16px 18px"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:c.bg,borderRadius:100,padding:"4px 12px",marginBottom:9}}>
+              <Folder size={13} color={c.color}/><span style={{fontSize:11,fontWeight:800,color:c.color}}>{c.label}</span>
+            </div>
+            <div style={{fontSize:19,fontWeight:900,color:C.ink,marginBottom:5}}>{s.customerName}</div>
+            <div style={{fontSize:12,color:C.inkMid}}>{s.product}</div>
+          </div>
+        </div>
+
+        <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[
+            { label:"Status",     val:s.status,   color:statColor(s.status) },
+            { label:"Priority",   val:s.priority, color:qualPriColor(s.priority) },
+            { label:"Owner",      val:USERS.find(u=>u.id===s.owner)?.name || "—", color:C.inkMid },
+            { label:"Department", val:s.department, color:C.inkMid },
+          ].map(m => (
+            <div key={m.label} style={{background:C.surfaceAlt,borderRadius:10,padding:"9px 12px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:9,color:C.inkLight,letterSpacing:2,marginBottom:2}}>{m.label}</div>
+              <div style={{fontSize:12,fontWeight:800,color:m.color}}>{m.val}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{margin:"0 16px 12px",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px"}}>
+          <div style={{fontSize:10,fontWeight:800,color:C.inkLight,letterSpacing:2,marginBottom:6}}>COMPLAINT DETAIL</div>
+          <p style={{fontSize:12,color:C.ink,lineHeight:1.6,margin:0}}>{s.description}</p>
+        </div>
+
+        {/* Tabs — Comments live, rest stubbed */}
+        <div style={{display:"flex",gap:14,padding:"0 16px",borderBottom:`1px solid ${C.border}`,marginBottom:14,overflowX:"auto"}}>
+          {["Comments","Root Cause","CAPA","Holds","Documents"].map(t=>(
+            <div key={t} onClick={()=> t!=="Comments" && soon()} style={{padding:"8px 2px",fontSize:12,fontWeight:700,color:t==="Comments"?TEAL:C.inkLight,borderBottom:t==="Comments"?`2px solid ${TEAL}`:"2px solid transparent",cursor:"pointer",whiteSpace:"nowrap"}}>{t}</div>
+          ))}
+        </div>
+
+        <div style={{padding:"0 16px 12px"}}>
+          <textarea style={{...sx.textarea,marginBottom:8}} rows={2} placeholder="New comment…" value={newComment} onChange={e=>setNewComment(e.target.value)}/>
+          <button style={{...sx.solidBtn,width:"100%",background:TEAL,flex:"none"}} onClick={postComment}>Post Comment</button>
+          <div style={{marginTop:12}}>
+            {(s.comments||[]).length===0 && <div style={{fontSize:12,color:C.inkLight,textAlign:"center",padding:"10px 0"}}>No comments yet</div>}
+            {(s.comments||[]).map((cm,i)=>(
+              <div key={i} style={{background:C.surfaceAlt,borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.ink}}>{cm.actor}</div>
+                <div style={{fontSize:12,color:C.inkMid,marginTop:2,lineHeight:1.5}}>{cm.text}</div>
+                <div style={{fontSize:9,color:C.inkLight,marginTop:4,fontFamily:MONO}}>{cm.time}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {s.status!=="CLOSED" && (isOwner || currentUser.role==="Admin" || currentUser.role==="Auditor") && (
+          <div style={{padding:"0 16px 28px"}}>
+            <SHead label="INVESTIGATE & CLOSE"/>
+            <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:14}}>
+              {s.status==="OPEN" && (
+                <button style={{...sx.solidBtn,width:"100%",marginBottom:12,background:`linear-gradient(135deg,${C.prog},#FCD34D)`}} onClick={()=>updateStatus("IN PROGRESS")}>Acknowledge — Start Investigation</button>
+              )}
+              <FLabel text="ROOT CAUSE"/>
+              <textarea style={{...sx.textarea,marginBottom:10}} rows={2} value={rootCause} onChange={e=>setRootCause(e.target.value)} placeholder="What caused this?"/>
+              <FLabel text="CORRECTIVE ACTION (CAPA)"/>
+              <textarea style={{...sx.textarea,marginBottom:12}} rows={3} value={correctiveAction} onChange={e=>setCorrectiveAction(e.target.value)} placeholder="Required to close — what was done to fix and prevent recurrence…"/>
+              <button style={{...sx.solidBtn,width:"100%",background:`linear-gradient(135deg,${C.closed},#34D399)`}} onClick={closeComplaint}>Close Complaint</button>
+            </div>
+          </div>
+        )}
+
+        {s.status==="CLOSED" && (
+          <div style={{margin:"0 16px 28px",background:C.closedBg,border:`1px solid ${C.closed}44`,borderRadius:12,padding:14}}>
+            <div style={{fontSize:11,fontWeight:800,color:C.closed,letterSpacing:2,marginBottom:8}}>✓ COMPLAINT CLOSED</div>
+            {s.rootCause && <div style={{fontSize:11,color:C.inkMid,marginBottom:6}}><strong>Root cause:</strong> {s.rootCause}</div>}
+            {s.correctiveAction && <div style={{fontSize:12,color:C.ink,lineHeight:1.6}}>{s.correctiveAction}</div>}
+          </div>
+        )}
+      </Shell>
+    );
+  }
+
+  // ── Raise view ───────────────────────────────────────────
+  if (tab==="raise") return (
+    <Shell toast={toast}>
+      <div style={{background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,padding:"14px 16px 16px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button style={sx.backBtnW} onClick={()=>setTab("board")}>← Back</button>
+          <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>LOG COMPLAINT</div>
+        </div>
+      </div>
+      <div style={{padding:"14px 16px"}}>
+        <FLabel text="CUSTOMER NAME"/>
+        <input style={{...sx.select,marginBottom:4}} value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="e.g. Acme Retail Group"/>
+        <FLabel text="PRODUCT / BATCH"/>
+        <input style={{...sx.select,marginBottom:4}} value={product} onChange={e=>setProduct(e.target.value)} placeholder="e.g. 500ml shipper — batch B4521"/>
+        <FLabel text="DEPARTMENT"/>
+        <select style={{...sx.select,marginBottom:4}} value={department} onChange={e=>setDepartment(e.target.value)}>
+          <option value="">— Select department —</option>
+          {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+        </select>
+        <FLabel text="CATEGORY"/>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+          {QUAL_CATS.map(c=>(
+            <button key={c.key} onClick={()=>setCategory(c.key)}
+              style={{flex:"1 1 30%",padding:"8px 4px",background:category===c.key?c.color:C.surfaceAlt,border:`1.5px solid ${category===c.key?c.color:C.border}`,borderRadius:10,cursor:"pointer"}}>
+              <span style={{fontSize:9,fontWeight:800,color:category===c.key?"#fff":c.color}}>{c.label}</span>
+            </button>
+          ))}
+        </div>
+        <FLabel text="PRIORITY"/>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          {["LOW","MEDIUM","HIGH","CRITICAL"].map(p=>(
+            <button key={p} onClick={()=>setPriority(p)}
+              style={{flex:1,padding:"9px 4px",borderRadius:9,border:`1.5px solid ${qualPriColor(p)}`,background:priority===p?`linear-gradient(135deg,${qualPriColor(p)},${qualPriColor(p)}aa)`:"transparent",color:priority===p?"#fff":qualPriColor(p),fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>
+              {p}
+            </button>
+          ))}
+        </div>
+        <FLabel text="ASSIGN OWNER"/>
+        <select style={{...sx.select,marginBottom:4}} value={owner} onChange={e=>setOwner(e.target.value)}>
+          <option value="">— Select owner —</option>
+          {[...USERS].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+        </select>
+        <FLabel text="COMPLAINT DETAIL"/>
+        <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the customer's complaint…"/>
+        <button style={{width:"100%",padding:"14px",background:customerName&&department&&category&&owner&&desc?`linear-gradient(135deg,${TEAL},${C.tealDk})`:C.surfaceAlt,border:"none",borderRadius:11,color:customerName&&department&&category&&owner&&desc?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
+          onClick={handleRaise} disabled={saving}>
+          ✅ Log Complaint &amp; Notify Owner
+        </button>
+      </div>
+    </Shell>
+  );
+
+  // ── Board ────────────────────────────────────────────────
+  const openCt   = items.filter(i=>i.status==="OPEN").length;
+  const progCt   = items.filter(i=>i.status==="IN PROGRESS").length;
+  const closedCt = items.filter(i=>i.status==="CLOSED").length;
+  let visible = myOnly ? items.filter(i=>USERS.find(u=>u.id===i.owner)?.name===currentUser.name) : items;
+  if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
+  if (catFilter) visible = visible.filter(i=>i.category===catFilter);
+  return (
+    <Shell toast={toast}>
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={onBack} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+              border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={18} color={C.ink}/>
+            </button>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${TEAL}14`,
+              border:`1.5px solid ${TEAL}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <ShieldCheck size={18} color={TEAL}/>
+            </div>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ fontSize:16, fontWeight:900, color:C.ink }}>Quality Desk</div>
+                <div style={{ fontSize:8, fontWeight:800, letterSpacing:0.5, color:C.prog, background:C.progBg, padding:"2px 8px", borderRadius:100 }}>QC MOBILE (TESTING)</div>
+              </div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>COMPLAINTS &amp; CAPA</div>
+            </div>
+          </div>
+          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+            <HomeIcon size={14}/> Home
+          </button>
+        </div>
+        <div style={{background:`${C.prog}12`, border:`1px solid ${C.prog}33`, borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:11, color:C.inkMid, lineHeight:1.5}}>
+          Pilot feature — findings logged here are reviewed and actioned in the main NCR system (Quality Desk) separately.
+        </div>
+        <button style={{width:"100%",background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:`0 6px 24px ${TEAL}33`,textAlign:"left"}} onClick={()=>setTab("raise")}>
+          <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center"}}><ShieldCheck size={20} color="#fff"/></div>
+          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>LOG COMPLAINT</div><div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2}}>Customer · Product · Assign owner · CAPA</div></div>
+          <ArrowRight size={16} color="rgba(255,255,255,0.8)" style={{marginLeft:"auto"}}/>
+        </button>
+      </div>
+
+      <div style={{ display:"flex", margin:"12px 16px 0", background:C.surface,
+        border:`1px solid ${C.border}`, borderRadius:12, boxShadow:C.shadow }}>
+        {[{label:"OPEN",val:openCt,Icon:FileText,f:"OPEN"},{label:"IN PROGRESS",val:progCt,Icon:Clock,f:"IN PROGRESS"},{label:"CLOSED",val:closedCt,Icon:RefreshCw,f:"CLOSED"}].map((st,i)=>(
+          <button key={st.label} onClick={()=>{setFilter(filter===st.f?"ALL":st.f);setMyOnly(false);}}
+            style={{flex:1,background:"none",border:"none",borderLeft:i>0?`1px solid ${C.border}`:"none",padding:"12px 6px",textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:5,cursor:"pointer",opacity:filter===st.f&&!myOnly?1:0.85}}>
+            <st.Icon size={16} color={filter===st.f&&!myOnly?TEAL:C.inkLight}/>
+            <div style={{fontSize:20,fontWeight:900,color:C.ink}}>{st.val}</div>
+            <div style={{fontSize:8,color:C.inkLight,letterSpacing:0.5}}>{st.label}</div>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display:"flex", padding:"12px 16px 0", gap:8, alignItems:"center" }}>
+        <div style={{ display:"flex", gap:14, flex:1, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
+          <button onClick={()=>{setMyOnly(v=>!v);setFilter("ALL");}}
+            style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none",
+              borderBottom:`2px solid ${myOnly?TEAL:"transparent"}`, color:myOnly?TEAL:C.inkLight,
+              fontSize:11, fontWeight:700, padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+            <Av txt={currentUser.initials} color={currentUser.color} size={14}/> Mine
+          </button>
+          {[["ALL","All Complaints"],["OPEN","Open"],["IN PROGRESS","In Progress"],["CLOSED","Closed"]].map(([f,label])=>(
+            <button key={f} onClick={()=>{setFilter(f);setMyOnly(false);}}
+              style={{ background:"none", border:"none",
+                borderBottom:`2px solid ${filter===f&&!myOnly?TEAL:"transparent"}`,
+                color:filter===f&&!myOnly?TEAL:C.inkLight, fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                padding:"0 0 8px", cursor:"pointer", fontFamily:FONT, flexShrink:0 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:"relative", flexShrink:0 }}>
+          <button onClick={()=>setShowCatMenu(v=>!v)}
+            style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${catFilter?TEAL:C.border}`, borderRadius:9, padding:"7px 11px",
+              fontSize:11, fontWeight:700, color:catFilter?TEAL:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
+            <FilterIcon size={13}/> Filter
+          </button>
+          {showCatMenu && (
+            <div style={{ position:"absolute", top:"110%", right:0, background:C.surface,
+              border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 8px 24px rgba(30,32,37,0.14)",
+              zIndex:20, minWidth:170, overflow:"hidden" }}>
+              <button onClick={()=>{setCatFilter("");setShowCatMenu(false);}}
+                style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:!catFilter?C.surfaceAlt:"none",
+                  border:"none", fontSize:11, fontWeight:700, color:C.ink, cursor:"pointer", fontFamily:FONT }}>
+                All categories
+              </button>
+              {QUAL_CATS.map(c=>(
+                <button key={c.key} onClick={()=>{setCatFilter(c.key);setShowCatMenu(false);}}
+                  style={{ width:"100%", textAlign:"left", padding:"9px 12px", background:catFilter===c.key?C.surfaceAlt:"none",
+                    border:"none", fontSize:11, fontWeight:700, color:c.color, cursor:"pointer", fontFamily:FONT }}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+        {visible.map((item,idx)=>{
+          const c = getQualCat(item.category);
+          const isOwner = USERS.find(u=>u.id===item.owner)?.name === currentUser.name;
+          return (
+            <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
+              <button style={{width:"100%",background:C.surface,border:`1px solid ${isOwner&&item.status==="OPEN"?`${C.open}55`:C.border}`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",fontFamily:FONT,display:"flex",gap:12,boxShadow:C.shadow}} onClick={()=>setSelected(item)}>
+                <div style={{ width:44, height:44, borderRadius:10, background:c.bg,
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Folder size={18} color={c.color}/>
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                    <div style={{background:c.bg,color:c.color,fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:100}}>{c.label}</div>
+                    <div style={{background:`${qualPriColor(item.priority)}18`,color:qualPriColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
+                    <div style={{background:statBg(item.status),color:statColor(item.status),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.status}</div>
+                    {isOwner&&<div style={{background:`${currentUser.color}18`,color:currentUser.color,fontSize:8,fontWeight:800,padding:"2px 7px",borderRadius:100}}>MINE</div>}
+                    <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                      <span style={{fontSize:10,color:C.inkLight,fontFamily:MONO}}>{item.id}</span>
+                      <ArrowRight size={13} color={C.inkLight}/>
+                    </div>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:800,color:C.ink,marginBottom:4}}>{item.customerName}</div>
+                  <div style={{fontSize:12,color:C.inkMid,lineHeight:1.55,marginBottom:10}}>{item.description}</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <Av txt={item.ownerInit} color={item.ownerColor} size={22}/>
+                      <span style={{fontSize:11,color:C.inkMid}}>{USERS.find(u=>u.id===item.owner)?.name}</span>
+                    </div>
+                    <span style={{fontSize:10,color:C.inkLight}}>{item.department}</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {visible.length===0&&<div style={{textAlign:"center",padding:"40px 20px"}}><ShieldCheck size={36} color={C.inkLight}/><div style={{fontSize:13,color:C.inkLight,marginTop:8}}>No complaints logged yet</div></div>}
+
+      {/* Bottom nav */}
+      <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+        width:"100%", maxWidth:480, background:C.surface,
+        borderTop:`1px solid ${C.border}`, display:"flex",
+        paddingBottom:"env(safe-area-inset-bottom,0)",
+        boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
+        {[
+          { id:"board", Icon:LayoutGrid,  label:"BOARD" },
+          { id:"raise", Icon:ShieldCheck, label:"RAISE" },
+        ].map(n => (
+          <button key={n.id} onClick={()=>setTab(n.id)}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
+              gap:3, padding:"11px 2px", background:"none", border:"none",
+              color:tab===n.id?TEAL:C.inkLight, fontSize:8, letterSpacing:1,
+              fontWeight:800, cursor:"pointer", fontFamily:FONT,
+              borderTop:`2.5px solid ${tab===n.id?TEAL:"transparent"}` }}>
+            <n.Icon size={18}/>
+            {n.label}
+          </button>
         ))}
       </div>
     </Shell>
@@ -2828,7 +3227,7 @@ function QualityDeskPage({ currentUser, onBack }) {
 // ─────────────────────────────────────────────────────────
 // FPA HOME SCREEN — S&G OpsApp
 // ─────────────────────────────────────────────────────────
-function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards }) {
+function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards, qualityItems }) {
   const [showMyLog, setShowMyLog] = useState(false);
 
   const now  = new Date();
@@ -2839,6 +3238,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   const my5sOpen    = (issues    ||[]).filter(i => i.manager===currentUser.name && i.status==="OPEN").length;
   const myGembaOpen = (gembaItems||[]).filter(i => i.owner  ===currentUser.name && i.status==="OPEN").length;
   const myMaintOpen = (jobCards  ||[]).filter(i => i.maintAdmin && MAINT_ADMINS.find(a=>a.id===i.maintAdmin)?.name===currentUser.name && i.status!=="CLOSED").length;
+  const myQualOpen  = (qualityItems||[]).filter(i => USERS.find(u=>u.id===i.owner)?.name===currentUser.name && i.status!=="CLOSED").length;
   const myTotalOpen = my5sOpen + myGembaOpen;
 
   // All my open items combined for My Log
@@ -2849,7 +3249,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
     { id:"5s",          Icon:ClipboardCheck,  label:"5S Housekeeping", desc:"Audits · Findings · Compliance scoring", color:TEAL,      status:"LIVE",        badge:my5sOpen    },
     { id:"gemba",       Icon:PersonStanding,  label:"Gemba Walks",     desc:"Floor observations · Action tracking",   color:"#8B5CF6", status:"LIVE",        badge:myGembaOpen },
     { id:"maintenance", Icon:Wrench,          label:"Maintenance",     desc:"Job cards · Planned maintenance",         color:"#F59E0B", status:"LIVE",        badge:myMaintOpen },
-    { id:"quality",     Icon:ShieldCheck,     label:"Quality Desk",    desc:"Complaints · Holds · CAPA",               color:"#10B981", status:"COMING SOON", badge:0           },
+    { id:"quality",     Icon:ShieldCheck,     label:"Quality Desk",    desc:"Complaints · Holds · CAPA",               color:"#10B981", status:"LIVE",        badge:myQualOpen  },
   ];
 
   // MY LOG overlay
@@ -3018,6 +3418,7 @@ export default function App() {
   const [issues,       setIssues]       = useState(SEED_ISSUES);
   const [gembaItems,   setGembaItems]   = useState(SEED_GEMBA);
   const [jobCards,     setJobCards]     = useState(SEED_JOBCARDS);
+  const [qualityItems, setQualityItems] = useState(SEED_COMPLAINTS);
 
   if (!currentUser) return <LoginScreen onLogin={u => { setCurrentUser(u); setModule(null); }}/>;
 
@@ -3034,7 +3435,7 @@ export default function App() {
   );
   if (module === "gemba")       return <GembaModule currentUser={currentUser} onBack={()=>setModule(null)} items={gembaItems} setItems={setGembaItems}/>;
   if (module === "maintenance") return <MaintenancePage currentUser={currentUser} onBack={()=>setModule(null)} items={jobCards} setItems={setJobCards}/>;
-  if (module === "quality")     return <QualityDeskPage currentUser={currentUser} onBack={()=>setModule(null)}/>;
+  if (module === "quality")     return <QualityDeskPage currentUser={currentUser} onBack={()=>setModule(null)} items={qualityItems} setItems={setQualityItems}/>;
 
   return (
     <FPAHome
@@ -3044,6 +3445,7 @@ export default function App() {
       issues={issues}
       gembaItems={gembaItems}
       jobCards={jobCards}
+      qualityItems={qualityItems}
     />
   );
 }
