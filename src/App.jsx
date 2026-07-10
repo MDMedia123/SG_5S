@@ -2870,7 +2870,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems }) {
       id:`QC-${String(items.length+1).padStart(3,"0")}`,
       customerName, product, department, category, priority, description:desc,
       raisedBy:currentUser.name, raisedAt:now,
-      owner, ownerInit:m.initials, ownerColor:m.color,
+      owner, ownerName:m.name, ownerInit:m.initials, ownerColor:m.color,
       status:"OPEN", rootCause:"", correctiveAction:"", closeEvidence:null, comments:[],
       timeline:[
         { time:now, actor:currentUser.name, action:`Complaint logged — ${customerName}`, type:"raise" },
