@@ -3443,18 +3443,135 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
   const [qty, setQty] = useState(""), [shelf, setShelf] = useState("");
   const [mixed, setMixed] = useState(""), [expiry, setExpiry] = useState("");
 
-  const handleAddInk = () => {
-    if (!name || !batch || !customer || !substrate || !qty || !shelf) { showToast("⚠ Please fill colour, batch, customer, substrate, qty and shelf"); return; }
+  const addInkItem = (fields, sourceLabel) => {
     const id = `INK${String(inkItems.length+1).padStart(2,"0")}`;
     const today = new Date().toISOString().slice(0,10);
     const defExp = (() => { const d = new Date(); d.setMonth(d.getMonth()+6); return d.toISOString().slice(0,10); })();
-    const item = { id, name, customer, substrate, batch, serial, qty:parseFloat(qty)||0, shelf, mixed:mixed||today, expiry:expiry||defExp, mfr, job:job||"—", atPress:null };
+    const item = { id, name:fields.name, customer:fields.customer||"Unknown", substrate:fields.substrate||"Unknown",
+      batch:fields.batch||"Unknown", serial:fields.serial||"", qty:parseFloat(fields.qty)||0, shelf:fields.shelf,
+      mixed:fields.mixed||today, expiry:fields.expiry||defExp, mfr:fields.mfr||"", job:fields.job||"—", atPress:null };
     setInkItems(prev => [item, ...prev]);
     sbUpsert("ink_items", { id, data:item, created_at:item.mixed });
-    logAudit(currentUser.name, `Added ink ${id} — ${name}`, "Ink");
-    showToast(`✓ ${id} added — Shelf ${shelf}`);
+    logAudit(currentUser.name, `Added ink ${id} — ${item.name}${sourceLabel?` (${sourceLabel})`:""}`, "Ink");
+    return item;
+  };
+
+  const handleAddInk = () => {
+    if (!name || !batch || !customer || !substrate || !qty || !shelf) { showToast("⚠ Please fill colour, batch, customer, substrate, qty and shelf"); return; }
+    const item = addInkItem({ name, customer, substrate, batch, serial, qty, shelf, mixed, expiry, mfr, job });
+    showToast(`✓ ${item.id} added — Shelf ${shelf}`);
     setName(""); setBatch(""); setSerial(""); setCustomer(""); setSubstrate("");
     setMfr(""); setJob(""); setQty(""); setShelf(""); setMixed(""); setExpiry("");
+  };
+
+  // ── AI label scanner ───────────────────────────────────────
+  const INK_SCAN_FIELDS = [
+    { key:"name",         label:"Colour / Description" },
+    { key:"batch",        label:"Batch Number" },
+    { key:"serial",       label:"Serial / D No" },
+    { key:"customer",     label:"Customer" },
+    { key:"substrate",    label:"Substrate" },
+    { key:"qty",          label:"Quantity (kg)" },
+    { key:"manufacturer", label:"Manufacturer" },
+    { key:"inkType",      label:"Ink Type" },
+    { key:"mixed",        label:"Mfg Date" },
+    { key:"expiry",       label:"Expiry Date" },
+    { key:"notes",        label:"Notes" },
+  ];
+
+  const [apiKey,       setApiKey]       = useState(() => (typeof window!=="undefined" && localStorage.getItem("core_api_key")) || "");
+  const [showKeyPanel, setShowKeyPanel] = useState(false);
+  const [keyInput,     setKeyInput]     = useState("");
+  const saveApiKey = () => {
+    const k = keyInput.trim();
+    setApiKey(k);
+    if (k) localStorage.setItem("core_api_key", k); else localStorage.removeItem("core_api_key");
+    setShowKeyPanel(false); setKeyInput("");
+    showToast(k ? "✓ API key saved — scanner ready" : "API key removed");
+  };
+  const clearApiKey = () => { setApiKey(""); localStorage.removeItem("core_api_key"); showToast("API key removed"); };
+
+  const [scanImgUrl,    setScanImgUrl]    = useState(null);
+  const [scanBase64,    setScanBase64]    = useState(null);
+  const [scanning,      setScanning]      = useState(false);
+  const [scanStatus,    setScanStatus]    = useState(null); // {type,msg}
+  const [scanFields,    setScanFields]    = useState({});
+  const [scanConfidence,setScanConfidence]= useState({});
+  const [scanShelf,     setScanShelf]     = useState("");
+  const [scanDone,      setScanDone]      = useState(false);
+
+  const handleScanFile = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1200, s = Math.min(1, MAX/Math.max(img.width, img.height));
+        const w = Math.round(img.width*s), h = Math.round(img.height*s);
+        const cv = document.createElement("canvas"); cv.width=w; cv.height=h;
+        cv.getContext("2d").drawImage(img,0,0,w,h);
+        const url = cv.toDataURL("image/jpeg",0.88);
+        setScanBase64(url.split(",")[1]);
+        setScanImgUrl(url);
+        setScanStatus(null); setScanDone(false);
+        setScanFields({}); setScanConfidence({}); setScanShelf("");
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleScanRetake = () => {
+    setScanImgUrl(null); setScanBase64(null); setScanStatus(null); setScanDone(false);
+    setScanFields({}); setScanConfidence({}); setScanShelf("");
+  };
+
+  const runScan = async () => {
+    if (!scanBase64) return;
+    if (!apiKey) { setShowKeyPanel(true); showToast("⚠ Set an Anthropic API key first"); return; }
+    setScanning(true);
+    setScanStatus({ type:"info", msg:"Claude Vision is reading your label…" });
+    const sys = 'You are an ink store OCR assistant. Analyse this ink label photo. Return ONLY a JSON object, no markdown, no explanation. Schema: {"name":string,"batch":string,"serial":string,"customer":string,"substrate":string,"qty":number,"manufacturer":string,"inkType":string,"mixed":string,"expiry":string,"notes":string,"confidence":{"name":0-100,"batch":0-100,"serial":0-100,"customer":0-100,"substrate":0-100,"qty":0-100,"manufacturer":0-100,"inkType":0-100,"mixed":0-100,"expiry":0-100,"notes":0-100}}. Use null for fields not visible.';
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+        body: JSON.stringify({ model:"claude-sonnet-5", max_tokens:1024, system:sys, messages:[{ role:"user", content:[{ type:"image", source:{ type:"base64", media_type:"image/jpeg", data:scanBase64 } }, { type:"text", text:"Extract all ink label fields. Return JSON only." }] }] })
+      });
+      const data = await res.json();
+      if (data.type === "error") throw new Error(data.error?.message || "API error");
+      const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+      if (!raw) throw new Error("Empty response");
+      let parsed = null;
+      try { parsed = JSON.parse(raw); } catch { const m = raw.match(/\{[\s\S]*\}/); if (m) parsed = JSON.parse(m[0]); }
+      if (!parsed) throw new Error("Could not parse response");
+      const conf = parsed.confidence || {};
+      const fields = {};
+      let hiCount = 0;
+      INK_SCAN_FIELDS.forEach(f => {
+        const val = parsed[f.key];
+        if (val != null && val !== "null") fields[f.key] = String(val);
+        if ((conf[f.key]||0) >= 80) hiCount++;
+      });
+      setScanFields(fields);
+      setScanConfidence(conf);
+      setScanStatus({ type:"ok", msg:`✓ Label read — ${hiCount} high-confidence field${hiCount!==1?"s":""}. Review and confirm.` });
+    } catch (e) {
+      setScanStatus({ type:"err", msg:`Failed: ${e.message}` });
+    }
+    setScanning(false);
+  };
+
+  const handleScanConfirm = () => {
+    if (!scanShelf.trim()) { showToast("⚠ Please assign a shelf location first"); return; }
+    const item = addInkItem({
+      name: scanFields.name || "Unknown Ink", batch: scanFields.batch || "Unknown", serial: scanFields.serial||"",
+      customer: scanFields.customer||"Unknown", substrate: scanFields.substrate||"Unknown", qty: scanFields.qty||0,
+      shelf: scanShelf, mfr: scanFields.manufacturer||"", mixed:"", expiry:"",
+    }, "AI label scan");
+    setScanDone(true);
+    showToast(`✓ ${item.id} added from scan — Shelf ${scanShelf}`);
   };
 
   // search / filter
@@ -3523,15 +3640,33 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
               <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>SYSTEM ADMIN ONLY · PILOT</div>
             </div>
           </div>
-          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
-            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
-            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-            <HomeIcon size={14}/> Home
-          </button>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <button onClick={()=>{setShowKeyPanel(v=>!v);setKeyInput(apiKey);}} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${apiKey?C.closed+"55":C.border}`, borderRadius:10, color:apiKey?C.closed:C.inkMid, padding:"8px 12px",
+              fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+              <div style={{ width:7, height:7, borderRadius:"50%", background:apiKey?C.closed:C.prog }}/> AI Scan Key
+            </button>
+            <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+              border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+              fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+              <HomeIcon size={14}/> Home
+            </button>
+          </div>
         </div>
+        {showKeyPanel && (
+          <div style={{ background:C.surfaceAlt, border:`1px solid ${C.border}`, borderRadius:10, padding:12, marginBottom:14 }}>
+            <FLabel text="ANTHROPIC API KEY — FOR AI LABEL SCANNING"/>
+            <div style={{ fontSize:10, color:C.inkLight, marginBottom:8 }}>Stored only in this browser. Get one at console.anthropic.com. Never share this key.</div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input style={{...sx.select, flex:1}} type="password" value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="sk-ant-…"/>
+              <button style={{...sx.solidBtn, flex:"none", background:INKC}} onClick={saveApiKey}>Save</button>
+              {apiKey && <button style={{...sx.ghostBtn, flex:"none", color:C.open, borderColor:`${C.open}55`}} onClick={clearApiKey}>Remove</button>}
+            </div>
+          </div>
+        )}
         <div style={{ display:"flex", gap:14, overflowX:"auto" }}>
           {TABS.map(([t,label]) => (
-            <button key={t} onClick={()=>["inventory","register","jobs","machines","reports"].includes(t) ? setTab(t) : (setTab(t)||soon())}
+            <button key={t} onClick={()=>["inventory","register","jobs","machines","reports","scan"].includes(t) ? setTab(t) : soon()}
               style={{ background:"none", border:"none", borderBottom:tab===t?`2px solid ${INKC}`:"2px solid transparent",
                 color:tab===t?INKC:C.inkLight, fontSize:12, fontWeight:700, padding:"0 0 10px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
               {label}
@@ -3761,6 +3896,107 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {tab==="scan" && (
+        <div style={{ padding:"14px 16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isDesktop?"340px 1fr":"1fr", gap:16, alignItems:"start" }}>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:C.ink, marginBottom:2 }}>AI Label Scanner</div>
+              <div style={{ fontSize:11, color:C.inkLight, marginBottom:12 }}>Photo → Claude reads → fields fill</div>
+
+              <div onClick={()=>!scanImgUrl && document.getElementById("ink-scan-gallery").click()}
+                style={{ width:"100%", aspectRatio:"4/3", background:"#0A0C0E", borderRadius:10, overflow:"hidden",
+                  display:"flex", alignItems:"center", justifyContent:"center", cursor:scanImgUrl?"default":"pointer", marginBottom:10 }}>
+                {scanImgUrl ? (
+                  <img src={scanImgUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"contain" }}/>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, color:"rgba(255,255,255,0.3)", textAlign:"center", padding:20 }}>
+                    <Camera size={36} color="rgba(255,255,255,0.25)"/>
+                    <div style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.5)" }}>Tap to choose photo</div>
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.25)" }}>Camera or upload below</div>
+                  </div>
+                )}
+              </div>
+              <input id="ink-scan-camera"  type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={handleScanFile}/>
+              <input id="ink-scan-gallery" type="file" accept="image/*" style={{display:"none"}} onChange={handleScanFile}/>
+
+              <div style={{ display:"flex", gap:7, marginBottom:8 }}>
+                <button style={{ flex:1, height:36, borderRadius:8, border:"none", background:INKC, color:"#fff", fontSize:11, fontWeight:800, letterSpacing:1, cursor:"pointer", fontFamily:FONT }}
+                  onClick={()=>document.getElementById("ink-scan-camera").click()}>Camera</button>
+                <button style={{ flex:1, height:36, borderRadius:8, border:"none", background:"#2E3740", color:"#fff", fontSize:11, fontWeight:800, letterSpacing:1, cursor:"pointer", fontFamily:FONT }}
+                  onClick={()=>document.getElementById("ink-scan-gallery").click()}>Upload</button>
+                {scanImgUrl && <button style={{ flex:1, height:36, borderRadius:8, border:`1px solid ${C.border}`, background:C.surface, color:C.inkMid, fontSize:11, fontWeight:800, letterSpacing:1, cursor:"pointer", fontFamily:FONT }}
+                  onClick={handleScanRetake}>Retake</button>}
+              </div>
+
+              <button style={{ width:"100%", height:38, borderRadius:8, border:"none", background:scanImgUrl&&!scanning?"#2E3740":C.surfaceAlt,
+                color:scanImgUrl&&!scanning?"#fff":C.inkLight, fontSize:11, fontWeight:800, letterSpacing:1, cursor:scanImgUrl&&!scanning?"pointer":"not-allowed", fontFamily:FONT, marginBottom:10 }}
+                onClick={runScan} disabled={!scanImgUrl||scanning}>
+                {scanning ? "Analysing…" : "Analyse Label with AI"}
+              </button>
+
+              {scanStatus && (
+                <div style={{ padding:"9px 11px", borderRadius:8, fontSize:11, lineHeight:1.5, display:"flex", alignItems:"flex-start", gap:7,
+                  background:scanStatus.type==="ok"?C.closedBg:scanStatus.type==="err"?C.openBg:`${INKC}12`,
+                  color:scanStatus.type==="ok"?C.closed:scanStatus.type==="err"?C.open:INKC,
+                  border:`1px solid ${scanStatus.type==="ok"?C.closed:scanStatus.type==="err"?C.open:INKC}33` }}>
+                  {scanStatus.type==="info" && <div style={{ width:12, height:12, borderRadius:"50%", border:`2px solid ${INKC}44`, borderTopColor:INKC, animation:"spin 0.7s linear infinite", flexShrink:0, marginTop:1 }}/>}
+                  <span>{scanStatus.msg}</span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize:13, fontWeight:900, color:C.ink, marginBottom:2 }}>Extracted Data</div>
+              <div style={{ fontSize:11, color:C.inkLight, marginBottom:14 }}>{Object.keys(scanFields).length ? "Review AI-extracted fields, then confirm" : "Fields auto-fill after AI analysis"}</div>
+
+              <div style={{ display:"grid", gridTemplateColumns:isDesktop?"1fr 1fr":"1fr", gap:"0 12px" }}>
+                {INK_SCAN_FIELDS.map(f => {
+                  const conf = scanConfidence[f.key] || 0;
+                  const tint = conf>=80 ? C.closedBg : conf>=55 ? C.progBg : "transparent";
+                  const badgeColor = conf>=80 ? C.closed : conf>=55 ? C.prog : C.inkLight;
+                  const badgeText = conf>=80 ? `AI ${conf}%` : conf>=55 ? `~${conf}%` : conf>0 ? "Low" : "Awaiting";
+                  return (
+                    <div key={f.key} style={{ marginBottom:12 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                        <label style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:C.inkMid }}>{f.label}</label>
+                        <span style={{ fontSize:8, fontWeight:700, padding:"1px 6px", borderRadius:100, background:conf>0?`${badgeColor}18`:C.surfaceAlt, color:badgeColor, border:`1px solid ${conf>0?badgeColor+"55":C.border}` }}>{badgeText}</span>
+                      </div>
+                      <input style={{...sx.select, background:tint!=="transparent"?tint:C.surfaceAlt, padding:"9px 10px"}}
+                        value={scanFields[f.key]||""} onChange={e=>setScanFields(prev=>({...prev,[f.key]:e.target.value}))}/>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginBottom:4 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                  <label style={{ fontSize:9, fontWeight:700, letterSpacing:1, textTransform:"uppercase", color:C.inkMid }}>Shelf / Zone</label>
+                  <span style={{ fontSize:8, fontWeight:700, padding:"1px 6px", borderRadius:100, background:C.surfaceAlt, color:C.inkLight, border:`1px solid ${C.border}` }}>Assign manually</span>
+                </div>
+                <input style={{...sx.select, borderStyle:"dashed"}} value={scanShelf} onChange={e=>setScanShelf(e.target.value)} placeholder="e.g. A3 — only you know the shelf"/>
+              </div>
+
+              <div style={{ height:1, background:C.border, margin:"14px 0" }}/>
+
+              {!scanDone ? (
+                <button style={{ width:"100%", height:40, borderRadius:9, border:"none", background:scanFields.name&&scanShelf.trim()?INKC:C.surfaceAlt,
+                  color:scanFields.name&&scanShelf.trim()?"#fff":C.inkLight, fontSize:12, fontWeight:800, letterSpacing:1, cursor:scanFields.name&&scanShelf.trim()?"pointer":"not-allowed", fontFamily:FONT }}
+                  onClick={handleScanConfirm} disabled={!scanFields.name||!scanShelf.trim()}>
+                  Confirm &amp; Add to Inventory
+                </button>
+              ) : (
+                <div style={{ background:C.closedBg, border:`1px solid ${C.closed}44`, borderRadius:10, padding:14, textAlign:"center" }}>
+                  <div style={{ fontSize:13, fontWeight:800, color:C.closed, marginBottom:4 }}>✓ Added to Inventory</div>
+                  <div style={{ fontSize:11, color:C.closed, marginBottom:10 }}>{scanFields.name} · Shelf {scanShelf}</div>
+                  <button style={{ padding:"7px 16px", borderRadius:8, border:"none", background:INKC, color:"#fff", fontSize:10, fontWeight:800, letterSpacing:1, cursor:"pointer", fontFamily:FONT }}
+                    onClick={handleScanRetake}>Scan Next Label</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
