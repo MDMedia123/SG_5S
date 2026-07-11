@@ -3445,6 +3445,8 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
   const [toast, setToast] = useState("");
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
   const soon = () => showToast("This tab isn't built yet — coming soon");
+  const cLabel = text => <div style={{ fontSize:8, color:C.inkLight, letterSpacing:0.5, fontWeight:800, marginTop:8, marginBottom:3 }}>{text}</div>;
+  const cInput = { width:"100%", background:C.surfaceAlt, border:`1.5px solid ${C.border}`, borderRadius:8, color:C.ink, padding:"8px 10px", fontSize:12, fontFamily:FONT };
 
   useEffect(() => {
     (async () => {
@@ -3728,36 +3730,40 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
           <div style={{ display:"grid", gridTemplateColumns:isDesktop?"340px 1fr":"1fr", gap:16, alignItems:"start" }}>
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14 }}>
               <div style={{ fontSize:13, fontWeight:900, color:C.ink, marginBottom:2 }}>Add Ink</div>
-              <div style={{ fontSize:11, color:C.inkLight, marginBottom:12 }}>Enter manually or use AI Scan (coming soon)</div>
-              <FLabel text="COLOUR / DESCRIPTION"/>
-              <input style={sx.select} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. L/M Oxtail Blue (072C)"/>
-              <FLabel text="BATCH NUMBER"/>
-              <input style={sx.select} value={batch} onChange={e=>setBatch(e.target.value)} placeholder="e.g. 48867"/>
-              <FLabel text="SERIAL / D NO — OPTIONAL"/>
-              <input style={sx.select} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="e.g. D0101031"/>
-              <FLabel text="CUSTOMER"/>
-              <select style={sx.select} value={customer} onChange={e=>setCustomer(e.target.value)}>
-                <option value="">— Select —</option>
-                {INK_CUSTOMERS.map(c=><option key={c}>{c}</option>)}
-              </select>
-              <FLabel text="SUBSTRATE"/>
-              <select style={sx.select} value={substrate} onChange={e=>setSubstrate(e.target.value)}>
-                <option value="">— Select —</option>
-                {INK_SUBSTRATES.map(s=><option key={s}>{s}</option>)}
-              </select>
-              <FLabel text="MANUFACTURER — OPTIONAL"/>
-              <input style={sx.select} value={mfr} onChange={e=>setMfr(e.target.value)} placeholder="e.g. AB Colour Matching"/>
-              <FLabel text="JOB NUMBER — OPTIONAL"/>
-              <input style={sx.select} value={job} onChange={e=>setJob(e.target.value)} placeholder="e.g. J-2025-9301"/>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14 }}>
-                <div><FLabel text="QTY (KG)"/><input style={sx.select} type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0.0"/></div>
-                <div><FLabel text="SHELF"/><input style={sx.select} value={shelf} onChange={e=>setShelf(e.target.value)} placeholder="e.g. A3"/></div>
+              <div style={{ fontSize:11, color:C.inkLight, marginBottom:10 }}>Enter manually or use AI Scan</div>
+              {cLabel("COLOUR / DESCRIPTION")}
+              <input style={cInput} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. L/M Oxtail Blue (072C)"/>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div>{cLabel("BATCH NUMBER")}<input style={cInput} value={batch} onChange={e=>setBatch(e.target.value)} placeholder="e.g. 48867"/></div>
+                <div>{cLabel("SERIAL — OPT.")}<input style={cInput} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="e.g. D0101031"/></div>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                <div><FLabel text="MIXED DATE"/><input style={sx.select} type="date" value={mixed} onChange={e=>setMixed(e.target.value)}/></div>
-                <div><FLabel text="EXPIRY DATE"/><input style={sx.select} type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></div>
+                <div>{cLabel("CUSTOMER")}
+                  <select style={cInput} value={customer} onChange={e=>setCustomer(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {INK_CUSTOMERS.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>{cLabel("SUBSTRATE")}
+                  <select style={cInput} value={substrate} onChange={e=>setSubstrate(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {INK_SUBSTRATES.map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
               </div>
-              <button style={{ ...sx.solidBtn, width:"100%", background:INKC, marginTop:16 }} onClick={handleAddInk}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div>{cLabel("MANUFACTURER — OPT.")}<input style={cInput} value={mfr} onChange={e=>setMfr(e.target.value)} placeholder="e.g. AB Colour"/></div>
+                <div>{cLabel("JOB NUMBER — OPT.")}<input style={cInput} value={job} onChange={e=>setJob(e.target.value)} placeholder="e.g. J-2025-9301"/></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div>{cLabel("QTY (KG)")}<input style={cInput} type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0.0"/></div>
+                <div>{cLabel("SHELF")}<input style={cInput} value={shelf} onChange={e=>setShelf(e.target.value)} placeholder="e.g. A3"/></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div>{cLabel("MIXED DATE")}<input style={cInput} type="date" value={mixed} onChange={e=>setMixed(e.target.value)}/></div>
+                <div>{cLabel("EXPIRY DATE")}<input style={cInput} type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></div>
+              </div>
+              <button style={{ ...sx.solidBtn, width:"100%", background:INKC, marginTop:10 }} onClick={handleAddInk}>
                 Add to Inventory
               </button>
             </div>
