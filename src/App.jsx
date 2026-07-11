@@ -3351,12 +3351,467 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
 }
 
 // ─────────────────────────────────────────────────────────
+// INK MANAGEMENT — system-admin-only pilot module
+// ─────────────────────────────────────────────────────────
+const INKC = "#0E7490";
+const INK_LOW_QTY = 35; // kg reorder threshold
+const INK_CUSTOMERS  = ["Shave & Gibson","Pick & Pay","Woolworths","Shoprite","Checkers","Generic Stock"];
+const INK_SUBSTRATES = ["Valkraft","White BOPP","Clear BOPP","Kraft Paper","PET","PE Film","Metallised PET"];
+
+const SEED_INK_ITEMS = [
+  { id:"INK01", name:"L/M Oxtail Blue (072C)",     customer:"Shave & Gibson", substrate:"Valkraft",    batch:"48867",         serial:"D0101031", qty:2,    shelf:"B1", mixed:"2026-02-10", expiry:"2026-08-10", mfr:"AB Colour Matching", job:"J-2025-9301", atPress:null },
+  { id:"INK02", name:"Process Cyan UV Flexo",      customer:"Pick & Pay",     substrate:"White BOPP",  batch:"BC-2025-04491", serial:"",         qty:48.5, shelf:"A1", mixed:"2026-05-12", expiry:"2026-11-12", mfr:"Hubergroup",         job:"J-2025-8810", atPress:null },
+  { id:"INK03", name:"Process Magenta UV Flexo",   customer:"Pick & Pay",     substrate:"White BOPP",  batch:"BC-2025-04492", serial:"",         qty:32,   shelf:"A2", mixed:"2026-05-12", expiry:"2026-11-12", mfr:"Hubergroup",         job:"J-2025-8810", atPress:null },
+  { id:"INK04", name:"Woolworths Green PMS 356",   customer:"Woolworths",    substrate:"Kraft Paper", batch:"WW-2024-09981", serial:"",         qty:18,   shelf:"B4", mixed:"2025-08-04", expiry:"2026-02-04", mfr:"Sun Chemical",       job:"J-2025-7701", atPress:null },
+  { id:"INK05", name:"Process Yellow UV Flexo",    customer:"Shoprite",      substrate:"Clear BOPP",  batch:"SR-2025-11034", serial:"",         qty:65,   shelf:"C1", mixed:"2026-04-01", expiry:"2026-10-01", mfr:"Flint Group",        job:"J-2025-9102", atPress:"FB03" },
+  { id:"INK06", name:"Process Black Solvent",      customer:"Checkers",      substrate:"PET",         batch:"CH-2025-00871", serial:"",         qty:91,   shelf:"D2", mixed:"2026-03-15", expiry:"2026-08-01", mfr:"Sun Chemical",       job:"J-2025-8950", atPress:"FB01" },
+];
+
+const INK_MACHINES = [
+  { id:"FB01", name:"Matador S II",          type:"Flexo Bag Machine", speed:"180 bags/min", status:"online",  job:"J-2025-8950" },
+  { id:"FB02", name:"Matador 32",            type:"Flexo Bag Machine", speed:"160 bags/min", status:"online",  job:"J-2025-8821" },
+  { id:"FB03", name:"Matador 26 (S/N 10)",   type:"Flexo Bag Machine", speed:"140 bags/min", status:"idle",    job:"J-2025-9102" },
+  { id:"FB04", name:"Matador 26 (S/N 76)",   type:"Flexo Bag Machine", speed:"140 bags/min", status:"offline", job:"—" },
+  { id:"FB05", name:"Lilin LSD400",          type:"Lamination Machine",speed:"200 m/min",    status:"online",  job:"—" },
+];
+
+const INK_JOBS = [
+  { no:"J-2025-9301", cust:"Shave & Gibson", desc:"Oxtail Packaging",     sub:"Valkraft",    inks:["L/M Oxtail Blue (072C)"],                qty:2,  mach:"FB02", date:"2025-06-01", status:"Active" },
+  { no:"J-2025-9102", cust:"Shoprite",       desc:"Christmas Promo Bag",  sub:"White BOPP",  inks:["Process Yellow UV Flexo"],                qty:58, mach:"FB03", date:"2025-06-02", status:"Active" },
+  { no:"J-2025-8950", cust:"Checkers",       desc:"Frozen Foods Bag",     sub:"PET",         inks:["Process Black Solvent"],                  qty:22, mach:"FB01", date:"2025-05-28", status:"Active" },
+  { no:"J-2025-8821", cust:"Pick & Pay",     desc:"Fresh Produce Bag",    sub:"White BOPP",  inks:["Process Cyan","Process Magenta"],         qty:31, mach:"FB02", date:"2025-05-20", status:"Active" },
+  { no:"J-2025-8810", cust:"Pick & Pay",     desc:"Bakery Range Bag",     sub:"White BOPP",  inks:["Process Cyan","Process Magenta"],         qty:45, mach:"FB02", date:"2025-05-18", status:"Complete" },
+  { no:"J-2025-7701", cust:"Woolworths",     desc:"Organic Line Bag",     sub:"Kraft Paper", inks:["Woolworths Green PMS 356"],               qty:18, mach:"FB04", date:"2025-05-10", status:"Complete" },
+  { no:"J-2025-9200", cust:"Shoprite",       desc:"Summer Range Bag",     sub:"Clear BOPP",  inks:["Process Yellow"],                         qty:0,  mach:"FB03", date:"2025-06-10", status:"Pending" },
+  { no:"J-2025-9210", cust:"Pick & Pay",     desc:"Winter Snacks Bag",    sub:"White BOPP",  inks:["Process Cyan","Process Black"],           qty:0,  mach:"FB02", date:"2025-06-15", status:"Pending" },
+];
+
+function computeInkChecks(ink) {
+  const issues = [], passes = [];
+  const today = new Date();
+  const expiryDate = ink.expiry ? new Date(ink.expiry) : null;
+  const daysToExpiry = expiryDate ? Math.round((expiryDate - today) / 86400000) : null;
+  if (expiryDate && daysToExpiry < 0) issues.push({ t:"err", m:"Ink expired — do not use" });
+  else if (expiryDate && daysToExpiry <= 30) issues.push({ t:"warn", m:`Approaching expiry in ${daysToExpiry} days` });
+  else if (expiryDate) passes.push("Within expiry");
+  if (ink.qty < INK_LOW_QTY) issues.push({ t:"warn", m:`Stock below reorder threshold (${ink.qty} kg < ${INK_LOW_QTY} kg min)` });
+  else passes.push("Stock adequate");
+  if (ink.batch) passes.push("Batch verified");
+  if (ink.shelf) passes.push("Shelf confirmed");
+  const status = issues.some(i=>i.t==="err") ? "err" : issues.length ? "warn" : "ok";
+  return { status, issues, passes };
+}
+const inkStatColor = s => s==="err"?C.open:s==="warn"?C.prog:C.closed;
+const inkStatBg    = s => s==="err"?C.openBg:s==="warn"?C.progBg:C.closedBg;
+const fmtInkDate = d => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); } catch { return d; } };
+
+function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
+  const isDesktop = useIsDesktop();
+  const [tab, setTab] = useState("inventory");
+  const [toast, setToast] = useState("");
+  const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
+  const soon = () => showToast("This tab isn't built yet — coming soon");
+
+  useEffect(() => {
+    (async () => {
+      const rows = await sbFetch("ink_items");
+      if (Array.isArray(rows) && rows.length > 0) setInkItems(rows.map(r => r.data));
+    })();
+  }, []);
+
+  const persist = (updated, actionLabel) => {
+    setInkItems(prev => prev.map(x => x.id === updated.id ? updated : x));
+    sbUpsert("ink_items", { id:updated.id, data:updated, created_at:updated.mixed || new Date().toISOString() });
+    if (actionLabel) logAudit(currentUser.name, `${updated.id} ${actionLabel}`, "Ink");
+  };
+
+  // add-ink form
+  const [name, setName] = useState(""), [batch, setBatch] = useState(""), [serial, setSerial] = useState("");
+  const [customer, setCustomer] = useState(""), [substrate, setSubstrate] = useState("");
+  const [mfr, setMfr] = useState(""), [job, setJob] = useState("");
+  const [qty, setQty] = useState(""), [shelf, setShelf] = useState("");
+  const [mixed, setMixed] = useState(""), [expiry, setExpiry] = useState("");
+
+  const handleAddInk = () => {
+    if (!name || !batch || !customer || !substrate || !qty || !shelf) { showToast("⚠ Please fill colour, batch, customer, substrate, qty and shelf"); return; }
+    const id = `INK${String(inkItems.length+1).padStart(2,"0")}`;
+    const today = new Date().toISOString().slice(0,10);
+    const defExp = (() => { const d = new Date(); d.setMonth(d.getMonth()+6); return d.toISOString().slice(0,10); })();
+    const item = { id, name, customer, substrate, batch, serial, qty:parseFloat(qty)||0, shelf, mixed:mixed||today, expiry:expiry||defExp, mfr, job:job||"—", atPress:null };
+    setInkItems(prev => [item, ...prev]);
+    sbUpsert("ink_items", { id, data:item, created_at:item.mixed });
+    logAudit(currentUser.name, `Added ink ${id} — ${name}`, "Ink");
+    showToast(`✓ ${id} added — Shelf ${shelf}`);
+    setName(""); setBatch(""); setSerial(""); setCustomer(""); setSubstrate("");
+    setMfr(""); setJob(""); setQty(""); setShelf(""); setMixed(""); setExpiry("");
+  };
+
+  // search / filter
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [openId, setOpenId] = useState(null);
+  const [issuingId, setIssuingId] = useState(null);
+  const [issueMachine, setIssueMachine] = useState("");
+  const [returningId, setReturningId] = useState(null);
+  const [returnQty, setReturnQty] = useState("");
+  const [confirmDisposeId, setConfirmDisposeId] = useState(null);
+
+  const enriched = inkItems.map(ink => ({ ...ink, ...computeInkChecks(ink) }));
+  const filtered = enriched.filter(ink => {
+    if (filter !== "all" && ink.status !== filter) return false;
+    const qq = q.toLowerCase().trim();
+    if (!qq) return true;
+    return [ink.name, ink.batch, ink.customer, ink.substrate, ink.shelf, ink.job, ink.serial, ink.mfr, ink.id]
+      .some(f => f && f.toLowerCase().includes(qq));
+  });
+
+  const handleIssue = ink => {
+    if (!issueMachine) return;
+    persist({ ...ink, atPress:issueMachine }, `issued to ${issueMachine}`);
+    setIssuingId(null); setIssueMachine("");
+    showToast(`✓ ${ink.id} issued to ${issueMachine}`);
+  };
+  const handleReturn = ink => {
+    const used = parseFloat(returnQty);
+    if (isNaN(used) || used < 0) return;
+    const newQty = Math.max(0, Math.round((ink.qty - used) * 10) / 10);
+    persist({ ...ink, atPress:null, qty:newQty }, `returned — ${used}kg used`);
+    setReturningId(null); setReturnQty("");
+    showToast(`✓ ${ink.id} returned — ${used}kg logged`);
+  };
+  const handleDispose = ink => {
+    setInkItems(prev => prev.filter(x => x.id !== ink.id));
+    sbDelete("ink_items", ink.id);
+    logAudit(currentUser.name, `${ink.id} disposed — ${ink.name}`, "Ink");
+    setConfirmDisposeId(null);
+    showToast(`✓ ${ink.id} disposed`);
+  };
+
+  const totalStock = inkItems.reduce((s,i)=>s+(i.qty||0),0);
+  const atPressCt  = inkItems.filter(i=>i.atPress).length;
+  const expiredCt  = enriched.filter(i=>i.status==="err").length;
+  const customerSet = new Set(inkItems.map(i=>i.customer)).size;
+
+  const TABS = [["inventory","Inventory"],["register","Register"],["jobs","Jobs"],["machines","Machines"],["reports","Reports"],["scan","AI Scan"],["press","Press"],["estimate","Estimator"]];
+
+  return (
+    <Shell toast={toast} wide>
+      <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <button onClick={onBack} style={{ width:40, height:40, borderRadius:10, background:C.surface,
+              border:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+              <ArrowLeft size={18} color={C.ink}/>
+            </button>
+            <div style={{ width:40, height:40, borderRadius:10, background:`${INKC}14`,
+              border:`1.5px solid ${INKC}55`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Paperclip size={18} color={INKC}/>
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:900, color:C.ink }}>Ink Management</div>
+              <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2 }}>SYSTEM ADMIN ONLY · PILOT</div>
+            </div>
+          </div>
+          <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
+            border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
+            fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+            <HomeIcon size={14}/> Admin
+          </button>
+        </div>
+        <div style={{ display:"flex", gap:14, overflowX:"auto" }}>
+          {TABS.map(([t,label]) => (
+            <button key={t} onClick={()=>["inventory","register","jobs","machines","reports"].includes(t) ? setTab(t) : (setTab(t)||soon())}
+              style={{ background:"none", border:"none", borderBottom:tab===t?`2px solid ${INKC}`:"2px solid transparent",
+                color:tab===t?INKC:C.inkLight, fontSize:12, fontWeight:700, padding:"0 0 10px", cursor:"pointer", fontFamily:FONT, whiteSpace:"nowrap" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab==="inventory" && (
+        <div style={{ padding:"14px 16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:isDesktop?"340px 1fr":"1fr", gap:16, alignItems:"start" }}>
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14 }}>
+              <div style={{ fontSize:13, fontWeight:900, color:C.ink, marginBottom:2 }}>Add Ink</div>
+              <div style={{ fontSize:11, color:C.inkLight, marginBottom:12 }}>Enter manually or use AI Scan (coming soon)</div>
+              <FLabel text="COLOUR / DESCRIPTION"/>
+              <input style={sx.select} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. L/M Oxtail Blue (072C)"/>
+              <FLabel text="BATCH NUMBER"/>
+              <input style={sx.select} value={batch} onChange={e=>setBatch(e.target.value)} placeholder="e.g. 48867"/>
+              <FLabel text="SERIAL / D NO — OPTIONAL"/>
+              <input style={sx.select} value={serial} onChange={e=>setSerial(e.target.value)} placeholder="e.g. D0101031"/>
+              <FLabel text="CUSTOMER"/>
+              <select style={sx.select} value={customer} onChange={e=>setCustomer(e.target.value)}>
+                <option value="">— Select —</option>
+                {INK_CUSTOMERS.map(c=><option key={c}>{c}</option>)}
+              </select>
+              <FLabel text="SUBSTRATE"/>
+              <select style={sx.select} value={substrate} onChange={e=>setSubstrate(e.target.value)}>
+                <option value="">— Select —</option>
+                {INK_SUBSTRATES.map(s=><option key={s}>{s}</option>)}
+              </select>
+              <FLabel text="MANUFACTURER — OPTIONAL"/>
+              <input style={sx.select} value={mfr} onChange={e=>setMfr(e.target.value)} placeholder="e.g. AB Colour Matching"/>
+              <FLabel text="JOB NUMBER — OPTIONAL"/>
+              <input style={sx.select} value={job} onChange={e=>setJob(e.target.value)} placeholder="e.g. J-2025-9301"/>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:14 }}>
+                <div><FLabel text="QTY (KG)"/><input style={sx.select} type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="0.0"/></div>
+                <div><FLabel text="SHELF"/><input style={sx.select} value={shelf} onChange={e=>setShelf(e.target.value)} placeholder="e.g. A3"/></div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                <div><FLabel text="MIXED DATE"/><input style={sx.select} type="date" value={mixed} onChange={e=>setMixed(e.target.value)}/></div>
+                <div><FLabel text="EXPIRY DATE"/><input style={sx.select} type="date" value={expiry} onChange={e=>setExpiry(e.target.value)}/></div>
+              </div>
+              <button style={{ ...sx.solidBtn, width:"100%", background:INKC, marginTop:16 }} onClick={handleAddInk}>
+                Add to Inventory
+              </button>
+            </div>
+
+            <div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>TOTAL STOCK</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:C.ink, marginTop:2 }}>{totalStock.toFixed(1)} kg</div>
+                </div>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>CUSTOMERS</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:C.ink, marginTop:2 }}>{customerSet}</div>
+                </div>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>AT PRESS</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:INKC, marginTop:2 }}>{atPressCt}</div>
+                </div>
+                <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>EXPIRED</div>
+                  <div style={{ fontSize:18, fontWeight:900, color:C.open, marginTop:2 }}>{expiredCt}</div>
+                </div>
+              </div>
+
+              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                <input style={{ ...sx.select, flex:1, minWidth:180 }} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search colour, batch, customer, job, shelf…"/>
+                {[["all","All"],["ok","OK"],["warn","Warn"],["err","Issues"]].map(([f,label])=>(
+                  <button key={f} onClick={()=>setFilter(f)} style={{ height:44, padding:"0 14px", borderRadius:10, border:`1.5px solid ${filter===f?INKC:C.border}`,
+                    background:filter===f?INKC:C.surface, color:filter===f?"#fff":C.inkMid, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:10, alignItems:"start" }}>
+                {filtered.map(ink => {
+                  const open = openId===ink.id;
+                  return (
+                    <div key={ink.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden" }}>
+                      <button onClick={()=>setOpenId(open?null:ink.id)} style={{ width:"100%", display:"flex", alignItems:"center", gap:8, padding:"12px 14px", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:FONT }}>
+                        <div style={{ width:4, alignSelf:"stretch", borderRadius:2, background:inkStatColor(ink.status), flexShrink:0 }}/>
+                        <div style={{ fontSize:10, color:C.inkLight, fontFamily:MONO, width:40, flexShrink:0 }}>{ink.id}</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.ink, flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ink.name}</div>
+                        <div style={{ background:inkStatBg(ink.status), color:inkStatColor(ink.status), fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100, flexShrink:0 }}>
+                          {ink.status==="ok" ? "OK" : `${ink.issues.length} issue${ink.issues.length>1?"s":""}`}
+                        </div>
+                      </button>
+                      {open && (
+                        <div style={{ borderTop:`1px solid ${C.border}`, background:C.surfaceAlt, padding:"12px 14px" }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:10 }}>
+                            {[["Customer",ink.customer],["Substrate",ink.substrate],["Batch",ink.batch],["Qty",`${ink.qty} kg`],["Shelf",ink.shelf],["Expiry",fmtInkDate(ink.expiry)]].map(([k,v])=>(
+                              <div key={k}><div style={{ fontSize:8, fontWeight:800, letterSpacing:1, color:C.inkLight, marginBottom:2 }}>{k.toUpperCase()}</div><div style={{ fontSize:11, fontWeight:700, color:C.ink }}>{v||"—"}</div></div>
+                            ))}
+                          </div>
+                          {ink.atPress && <div style={{ fontSize:11, fontWeight:700, color:INKC, background:`${INKC}12`, border:`1px solid ${INKC}33`, borderRadius:8, padding:"6px 10px", marginBottom:8 }}>Currently at {ink.atPress}</div>}
+                          <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:10 }}>
+                            {ink.issues.map((iss,i)=>(
+                              <div key={i} style={{ fontSize:11, padding:"5px 8px", borderRadius:6, background:iss.t==="err"?C.openBg:C.progBg, color:iss.t==="err"?C.open:C.prog }}>{iss.m}</div>
+                            ))}
+                            {ink.passes.map((p,i)=>(
+                              <div key={i} style={{ fontSize:11, padding:"5px 8px", borderRadius:6, background:C.closedBg, color:C.closed }}>✓ {p}</div>
+                            ))}
+                          </div>
+
+                          {issuingId===ink.id ? (
+                            <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+                              <select style={{...sx.select, flex:1}} value={issueMachine} onChange={e=>setIssueMachine(e.target.value)}>
+                                <option value="">— Select machine —</option>
+                                {INK_MACHINES.map(m=><option key={m.id} value={m.id}>{m.id} — {m.name}</option>)}
+                              </select>
+                              <button style={{...sx.solidBtn, flex:"none", background:INKC}} onClick={()=>handleIssue(ink)}>Confirm</button>
+                              <button style={{...sx.ghostBtn, flex:"none"}} onClick={()=>{setIssuingId(null);setIssueMachine("");}}>✕</button>
+                            </div>
+                          ) : returningId===ink.id ? (
+                            <div style={{ display:"flex", gap:6, marginBottom:6 }}>
+                              <input style={{...sx.select, flex:1}} type="number" placeholder="Qty used (kg)" value={returnQty} onChange={e=>setReturnQty(e.target.value)}/>
+                              <button style={{...sx.solidBtn, flex:"none", background:INKC}} onClick={()=>handleReturn(ink)}>Confirm</button>
+                              <button style={{...sx.ghostBtn, flex:"none"}} onClick={()=>{setReturningId(null);setReturnQty("");}}>✕</button>
+                            </div>
+                          ) : confirmDisposeId===ink.id ? (
+                            <div style={{ display:"flex", gap:6, marginBottom:6, alignItems:"center" }}>
+                              <span style={{ fontSize:11, color:C.open, flex:1 }}>Remove from inventory?</span>
+                              <button style={{...sx.solidBtn, flex:"none", background:C.open}} onClick={()=>handleDispose(ink)}>Yes, Dispose</button>
+                              <button style={{...sx.ghostBtn, flex:"none"}} onClick={()=>setConfirmDisposeId(null)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={()=>{setIssuingId(ink.id);setReturningId(null);setConfirmDisposeId(null);}}>Issue</button>
+                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={()=>{setReturningId(ink.id);setIssuingId(null);setConfirmDisposeId(null);}} disabled={!ink.atPress}>Return</button>
+                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={soon}>QR Label</button>
+                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11, color:C.open, borderColor:`${C.open}55`}} onClick={()=>{setConfirmDisposeId(ink.id);setIssuingId(null);setReturningId(null);}}>Dispose</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {filtered.length===0 && <div style={{ textAlign:"center", padding:"30px 0", color:C.inkLight, fontSize:12 }}>No inks match</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab==="register" && (
+        <div style={{ padding:"14px 16px" }}>
+          <SHead label={`ALL RECORDS (${inkItems.length})`}/>
+          <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:10 }}>
+            {enriched.map(ink => (
+              <div key={ink.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                  <div><div style={{ fontSize:12, fontWeight:800, color:C.ink }}>{ink.name}</div><div style={{ fontSize:10, color:C.inkLight, fontFamily:MONO, marginTop:1 }}>{ink.id} · {ink.batch}</div></div>
+                  <div style={{ width:9, height:9, borderRadius:"50%", background:inkStatColor(ink.status), flexShrink:0, marginTop:3 }}/>
+                </div>
+                {[["Customer",ink.customer],["Substrate",ink.substrate],["Qty",`${ink.qty} kg`],["Shelf",ink.shelf],["Expiry",fmtInkDate(ink.expiry)],["At press",ink.atPress||"In store"]].map(([k,v])=>(
+                  <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0", borderBottom:`1px solid ${C.border}` }}>
+                    <span style={{ color:C.inkLight }}>{k}</span><span style={{ fontWeight:700, color:k==="At press"&&ink.atPress?INKC:C.ink }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab==="jobs" && (
+        <div style={{ padding:"14px 16px", overflowX:"auto" }}>
+          <SHead label={`PRODUCTION JOBS (${INK_JOBS.length})`}/>
+          <table style={{ width:"100%", borderCollapse:"collapse", background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, overflow:"hidden" }}>
+            <thead>
+              <tr style={{ background:C.surfaceAlt }}>
+                {["Job No","Customer","Description","Substrate","Qty","Machine","Date","Status"].map(h=>(
+                  <th key={h} style={{ padding:"9px 12px", textAlign:"left", fontSize:9, fontWeight:800, letterSpacing:1, color:C.inkLight }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {INK_JOBS.map(j=>(
+                <tr key={j.no} style={{ borderTop:`1px solid ${C.border}` }}>
+                  <td style={{ padding:"9px 12px", fontSize:11, fontWeight:800, color:INKC, fontFamily:MONO }}>{j.no}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.ink }}>{j.cust}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.ink }}>{j.desc}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.inkMid }}>{j.sub}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.inkMid }}>{j.qty>0?`${j.qty} kg`:"—"}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.inkMid }}>{j.mach}</td>
+                  <td style={{ padding:"9px 12px", fontSize:11, color:C.inkMid }}>{fmtInkDate(j.date)}</td>
+                  <td style={{ padding:"9px 12px" }}><span style={{ fontSize:9, fontWeight:800, padding:"2px 8px", borderRadius:100,
+                    background:j.status==="Active"?C.closedBg:j.status==="Pending"?C.progBg:C.surfaceAlt, color:j.status==="Active"?C.closed:j.status==="Pending"?C.prog:C.inkMid }}>{j.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab==="machines" && (
+        <div style={{ padding:"14px 16px" }}>
+          <SHead label={`MACHINES (${INK_MACHINES.length})`}/>
+          <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:10 }}>
+            {INK_MACHINES.map(m => {
+              const loaded = inkItems.filter(i=>i.atPress===m.id);
+              const dc = { online:C.closed, idle:C.prog, offline:C.inkLight };
+              return (
+                <div key={m.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ padding:"10px 14px", display:"flex", justifyContent:"space-between", alignItems:"center", background:C.surfaceAlt }}>
+                    <div><div style={{ fontSize:12, fontWeight:800, color:C.ink }}>{m.name}</div><div style={{ fontSize:9, color:C.inkLight }}>{m.id} · {m.type}</div></div>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:9, fontWeight:800, color:dc[m.status] }}>
+                      <div style={{ width:6, height:6, borderRadius:"50%", background:dc[m.status] }}/>{m.status.toUpperCase()}
+                    </div>
+                  </div>
+                  <div style={{ padding:"10px 14px" }}>
+                    {[["Speed",m.speed],["Current job",m.job],["Inks loaded",loaded.length||"None"]].map(([k,v])=>(
+                      <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:11, padding:"3px 0" }}>
+                        <span style={{ color:C.inkLight }}>{k}</span><span style={{ fontWeight:700, color:k==="Current job"?INKC:C.ink }}>{v}</span>
+                      </div>
+                    ))}
+                    {loaded.length>0 && (
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:8, paddingTop:8, borderTop:`1px solid ${C.border}` }}>
+                        {loaded.map(i=><span key={i.id} style={{ fontSize:9, fontWeight:700, padding:"2px 7px", borderRadius:6, background:`${INKC}14`, color:INKC }}>{i.name}</span>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab==="reports" && (
+        <div style={{ padding:"14px 16px", maxWidth:isDesktop?800:"none" }}>
+          <SHead label="INVENTORY KPIS"/>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:20 }}>
+            {[["Total stock",`${totalStock.toFixed(1)} kg`,C.ink],["Active SKUs",inkItems.length,C.ink],["At press",atPressCt,INKC],["Expired",expiredCt,C.open]].map(([l,v,c])=>(
+              <div key={l} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
+                <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>{l.toUpperCase()}</div>
+                <div style={{ fontSize:20, fontWeight:900, color:c, marginTop:4 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <SHead label="STOCK BY CUSTOMER"/>
+          <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
+            {INK_CUSTOMERS.map(cust => {
+              const kg = inkItems.filter(i=>i.customer===cust).reduce((s,i)=>s+(i.qty||0),0);
+              const pct = totalStock>0 ? (kg/totalStock)*100 : 0;
+              return kg>0 ? (
+                <div key={cust}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                    <span style={{ fontWeight:700, color:C.ink }}>{cust}</span><span style={{ fontWeight:800, color:INKC }}>{kg.toFixed(1)} kg</span>
+                  </div>
+                  <div style={{ height:8, background:C.surfaceAlt, borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${pct}%`, background:INKC, borderRadius:4 }}/>
+                  </div>
+                </div>
+              ) : null;
+            })}
+          </div>
+          <SHead label="STOCK BY SUBSTRATE"/>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {INK_SUBSTRATES.map(sub => {
+              const kg = inkItems.filter(i=>i.substrate===sub).reduce((s,i)=>s+(i.qty||0),0);
+              const pct = totalStock>0 ? (kg/totalStock)*100 : 0;
+              return kg>0 ? (
+                <div key={sub}>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                    <span style={{ fontWeight:700, color:C.ink }}>{sub}</span><span style={{ fontWeight:800, color:C.prog }}>{kg.toFixed(1)} kg</span>
+                  </div>
+                  <div style={{ height:8, background:C.surfaceAlt, borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${pct}%`, background:C.prog, borderRadius:4 }}/>
+                  </div>
+                </div>
+              ) : null;
+            })}
+          </div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────
 // SYSTEM ADMIN — full visibility + roster management
 // ─────────────────────────────────────────────────────────
 const SYSADMIN = "#334155";
 const ROLES = ["Manager","Supervisor","Auditor","Admin"];
 
-function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
+function SystemAdminPage({ currentUser, onBack, onOpenInk, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
   const isDesktop = useIsDesktop();
   const [tab,   setTab]   = useState("overview");
   const [toast, setToast] = useState("");
@@ -3544,8 +3999,8 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
         </div>
 
         <div style={{ display:"flex", gap:14, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-          {[["overview","Overview"],["people","People"],["reports","Reports"],["auditlog","Audit Log"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
-            <button key={t} onClick={()=> ["overview","people","reports","auditlog"].includes(t) ? setTab(t) : soon()}
+          {[["overview","Overview"],["people","People"],["reports","Reports"],["auditlog","Audit Log"],["inkmgmt","Ink Mgmt"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
+            <button key={t} onClick={()=> t==="inkmgmt" ? onOpenInk() : ["overview","people","reports","auditlog"].includes(t) ? setTab(t) : soon()}
               style={{ background:"none", border:"none",
                 borderBottom:`2px solid ${tab===t?SYSADMIN:"transparent"}`,
                 color:tab===t?SYSADMIN:C.inkLight, fontSize:12, fontWeight:700, whiteSpace:"nowrap",
@@ -3981,6 +4436,7 @@ export default function App() {
   const [gembaItems,   setGembaItems]   = useState(SEED_GEMBA);
   const [jobCards,     setJobCards]     = useState(SEED_JOBCARDS);
   const [qualityItems, setQualityItems] = useState(SEED_COMPLAINTS);
+  const [inkItems,     setInkItems]     = useState(SEED_INK_ITEMS);
   const [users,        setUsers]        = useState(SEED_USERS);
 
   useEffect(() => {
@@ -4018,6 +4474,7 @@ export default function App() {
     <SystemAdminPage
       currentUser={currentUser}
       onBack={()=>setModule(null)}
+      onOpenInk={()=>setModule("inkmgmt")}
       users={users}
       setUsers={setUsers}
       issues={issues}
@@ -4028,6 +4485,14 @@ export default function App() {
       setJobCards={setJobCards}
       qualityItems={qualityItems}
       setQualityItems={setQualityItems}
+    />
+  );
+  if (module === "inkmgmt")     return (
+    <InkManagementPage
+      currentUser={currentUser}
+      onBack={()=>setModule("sysadmin")}
+      inkItems={inkItems}
+      setInkItems={setInkItems}
     />
   );
 

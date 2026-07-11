@@ -57,3 +57,12 @@ create table if not exists public.audit_log (
 -- error with "already exists").
 alter table public.audit_log enable row level security;
 create policy "public read/write" on public.audit_log for all using (true) with check (true);
+
+create table if not exists public.ink_items (
+  id text primary key,
+  data jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.ink_items enable row level security;
+create policy "public read/write" on public.ink_items for all using (true) with check (true);
