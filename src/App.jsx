@@ -7,6 +7,19 @@ import {
   ScrollText, BarChart3, Trash2, Pencil, RotateCcw, X as XIcon,
 } from "lucide-react";
 
+// ── RESPONSIVE ────────────────────────────────────────────
+const DESKTOP_BP = 880;
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.innerWidth >= DESKTOP_BP);
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= DESKTOP_BP);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return isDesktop;
+}
+const gridCols = isDesktop => isDesktop ? "repeat(auto-fill,minmax(320px,1fr))" : "1fr";
+
 // ── SUPABASE CLIENT ────────────────────────────────────────
 const SB_URL = "https://lxuokewkfxkjgptfcoeb.supabase.co";
 const SB_KEY = "sb_publishable_T7E8MsS9x1C-Nt0UFHoqTg_iFzbWgh_";
@@ -348,10 +361,12 @@ function injectStyles() {
 // SHARED UI COMPONENTS  (defined first so all views can use them)
 // ─────────────────────────────────────────────────────────
 
-function Shell({ children, toast }) {
+function Shell({ children, toast, wide }) {
+  const isDesktop = useIsDesktop();
+  const maxWidth = wide && isDesktop ? 1100 : 480;
   return (
     <div style={{ background:C.bg, minHeight:"100vh", display:"flex", justifyContent:"center" }}>
-      <div style={{ width:"100%", maxWidth:480, background:C.bg, minHeight:"100vh",
+      <div style={{ width:"100%", maxWidth, background:C.bg, minHeight:"100vh",
         paddingBottom:88, fontFamily:FONT, position:"relative" }}>
         {children}
         {toast && (
@@ -544,6 +559,7 @@ function LoginScreen({ onLogin, users }) {
 // ─────────────────────────────────────────────────────────
 
 function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome, issues, setIssues, users }) {
+  const isDesktop = useIsDesktop();
   const [tab,          setTab]          = useState("board");
   // issues/setIssues passed from App root for shared badge counts
   const [selected,     setSelected]     = useState(null);
@@ -1318,7 +1334,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   // ── REPORT ─────────────────────────────────────────────
   if (tab === "report") {
     return (
-      <Shell toast={toast}>
+      <Shell toast={toast} wide>
         <div style={{ background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,
           padding:"14px 16px 20px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
@@ -1565,7 +1581,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
   const closedCt = issues.filter(i => i.status==="CLOSED").length;
 
   return (
-    <Shell toast={toast}>
+    <Shell toast={toast} wide>
       {/* Header */}
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
@@ -1740,7 +1756,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
       </div>
 
       {/* Issue cards */}
-      <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ padding:"14px 16px", display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:10, alignItems:"start" }}>
         {filtered.map((nc,idx) => {
           const isMyFinding = nc.manager === currentUser.name;
           const band = nc.severityBand;
@@ -1814,7 +1830,7 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
 
       {/* Bottom nav */}
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:480, background:C.surface,
+        width:"100%", maxWidth:isDesktop?1100:480, background:C.surface,
         borderTop:`1px solid ${C.border}`, display:"flex",
         paddingBottom:"env(safe-area-inset-bottom,0)",
         boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
@@ -1896,6 +1912,7 @@ Write a concise action note (2-3 sentences): describe the finding, the risk or i
 }
 
 function GembaModule({ currentUser, onBack, items, setItems, users }) {
+  const isDesktop = useIsDesktop();
   const [tab,      setTab]      = useState("board");
   // items/setItems passed from App root for shared badge counts
   const [selected, setSelected] = useState(null);
@@ -2166,7 +2183,7 @@ function GembaModule({ currentUser, onBack, items, setItems, users }) {
   if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
   if (catFilter) visible = visible.filter(i=>i.category===catFilter);
   return (
-    <Shell toast={toast}>
+    <Shell toast={toast} wide>
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -2254,7 +2271,7 @@ function GembaModule({ currentUser, onBack, items, setItems, users }) {
         </div>
       </div>
 
-      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:gridCols(isDesktop),gap:10,alignItems:"start"}}>
         {visible.map((item,idx)=>{
           const c=getCat(item.category);
           const isOwner=item.owner===currentUser.name;
@@ -2295,7 +2312,7 @@ function GembaModule({ currentUser, onBack, items, setItems, users }) {
 
       {/* Bottom nav */}
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:480, background:C.surface,
+        width:"100%", maxWidth:isDesktop?1100:480, background:C.surface,
         borderTop:`1px solid ${C.border}`, display:"flex",
         paddingBottom:"env(safe-area-inset-bottom,0)",
         boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
@@ -2369,6 +2386,7 @@ const SEED_JOBCARDS = [
 ];
 
 function MaintenancePage({ currentUser, onBack, items, setItems }) {
+  const isDesktop = useIsDesktop();
   const [tab,      setTab]      = useState("board");
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
@@ -2672,7 +2690,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
   if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
   if (prioFilter) visible = visible.filter(i=>i.priority===prioFilter);
   return (
-    <Shell toast={toast}>
+    <Shell toast={toast} wide>
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -2760,7 +2778,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
         </div>
       </div>
 
-      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:gridCols(isDesktop),gap:10,alignItems:"start"}}>
         {visible.map((item,idx)=>(
           <div key={item.id} className="card" style={{animationDelay:`${idx*0.07}s`}}>
             <button style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",cursor:"pointer",textAlign:"left",fontFamily:FONT,display:"flex",gap:12,boxShadow:C.shadow}} onClick={()=>{
@@ -2799,7 +2817,7 @@ function MaintenancePage({ currentUser, onBack, items, setItems }) {
 
       {/* Bottom nav */}
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:480, background:C.surface,
+        width:"100%", maxWidth:isDesktop?1100:480, background:C.surface,
         borderTop:`1px solid ${C.border}`, display:"flex",
         paddingBottom:"env(safe-area-inset-bottom,0)",
         boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
@@ -2856,6 +2874,7 @@ const SEED_COMPLAINTS = [
 ];
 
 function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
+  const isDesktop = useIsDesktop();
   const [tab,      setTab]      = useState("board");
   const [selected, setSelected] = useState(null);
   const [toast,    setToast]    = useState("");
@@ -3172,7 +3191,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
   if (filter !== "ALL") visible = visible.filter(i=>i.status===filter);
   if (catFilter) visible = visible.filter(i=>i.category===catFilter);
   return (
-    <Shell toast={toast}>
+    <Shell toast={toast} wide>
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -3266,7 +3285,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
         </div>
       </div>
 
-      <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:gridCols(isDesktop),gap:10,alignItems:"start"}}>
         {visible.map((item,idx)=>{
           const c = getQualCat(item.category);
           const isOwner = users.find(u=>u.id===item.owner)?.name === currentUser.name;
@@ -3308,7 +3327,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
 
       {/* Bottom nav */}
       <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
-        width:"100%", maxWidth:480, background:C.surface,
+        width:"100%", maxWidth:isDesktop?1100:480, background:C.surface,
         borderTop:`1px solid ${C.border}`, display:"flex",
         paddingBottom:"env(safe-area-inset-bottom,0)",
         boxShadow:"0 -4px 24px rgba(30,32,37,0.08)" }}>
@@ -3338,6 +3357,7 @@ const SYSADMIN = "#334155";
 const ROLES = ["Manager","Supervisor","Auditor","Admin"];
 
 function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
+  const isDesktop = useIsDesktop();
   const [tab,   setTab]   = useState("overview");
   const [toast, setToast] = useState("");
   const showToast = msg => { setToast(msg); setTimeout(() => setToast(""), 2800); };
@@ -3499,7 +3519,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
   useEffect(() => { if (tab==="auditlog") loadAuditLog(); }, [tab]);
 
   return (
-    <Shell toast={toast}>
+    <Shell toast={toast} wide>
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -3537,7 +3557,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
       </div>
 
       {tab==="overview" && editing && (
-        <div style={{ padding:"14px 16px" }}>
+        <div style={{ padding:"14px 16px", maxWidth:isDesktop?560:"none" }}>
           <button onClick={closeEdit} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:C.inkMid, fontSize:12, fontWeight:700, cursor:"pointer", padding:0, marginBottom:14, fontFamily:FONT }}>
             <ArrowLeft size={14}/> Back to list
           </button>
@@ -3631,7 +3651,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
           </div>
 
           <SHead label={`ALL ITEMS (${allItems.length}) · TAP TO EDIT / DELETE / REOPEN`}/>
-          <div style={{ display:"flex", flexDirection:"column", gap:8, padding:"0 0 8px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:8, padding:"0 0 8px", alignItems:"start" }}>
             {allItems.map((it,idx)=>(
               <button key={idx} onClick={()=>openEdit(it)} style={{ textAlign:"left", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", cursor:"pointer", fontFamily:FONT }}>
                 <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
@@ -3652,9 +3672,9 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
       )}
 
       {tab==="reports" && (
-        <div style={{ padding:"14px 16px" }}>
+        <div style={{ padding:"14px 16px", maxWidth:isDesktop?800:"none" }}>
           <SHead label="AVERAGE TIME TO ACCEPT"/>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:8, marginBottom:20 }}>
+          <div style={{ display:"grid", gridTemplateColumns:isDesktop?"repeat(4,1fr)":"repeat(2,1fr)", gap:8, marginBottom:20 }}>
             {reportRows.map(r=>(
               <div key={r.label} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 14px" }}>
                 <div style={{ fontSize:9, color:C.inkLight, letterSpacing:1 }}>{r.label.toUpperCase()}</div>
@@ -3682,7 +3702,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
       )}
 
       {tab==="auditlog" && (
-        <div style={{ padding:"14px 16px" }}>
+        <div style={{ padding:"14px 16px", maxWidth:isDesktop?800:"none" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <SHead label={`AUDIT TRAIL (${auditRows.length})`}/>
             <button onClick={loadAuditLog} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface, border:`1px solid ${C.border}`, borderRadius:9, padding:"6px 11px", fontSize:11, fontWeight:700, color:C.inkMid, cursor:"pointer", fontFamily:FONT }}>
@@ -3711,7 +3731,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
       {tab==="people" && (
         <div style={{ padding:"14px 16px" }}>
           <SHead label="ADD PERSON"/>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16 }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16, maxWidth:isDesktop?560:"none" }}>
             <FLabel text="FULL NAME"/>
             <input style={{...sx.select,marginBottom:4}} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Thabo Nkosi"/>
             <FLabel text="DEPARTMENT"/>
@@ -3738,7 +3758,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
           </div>
 
           <SHead label={`ALL PEOPLE (${users.length})`}/>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:8, alignItems:"start" }}>
             {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=>(
               <div key={u.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
                 <Av txt={u.initials} color={u.color} size={32}/>
@@ -3760,6 +3780,7 @@ function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssu
 // FPA HOME SCREEN — S&G OpsApp
 // ─────────────────────────────────────────────────────────
 function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards, qualityItems, users }) {
+  const isDesktop = useIsDesktop();
   const [showMyLog, setShowMyLog] = useState(false);
 
   const now  = new Date();
@@ -3791,6 +3812,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   if (showMyLog) return (
     <div style={{background:C.bg, minHeight:"100vh", fontFamily:FONT}}>
       <div style={{background:`linear-gradient(135deg,${currentUser.color}CC,${currentUser.color}88)`, padding:"20px 16px 22px"}}>
+        <div style={{maxWidth:isDesktop?800:480, margin:"0 auto"}}>
         <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14}}>
           <button style={sx.backBtnW} onClick={()=>setShowMyLog(false)}>← Back</button>
           <div style={{fontSize:15, fontWeight:900, color:"#fff", letterSpacing:2}}>MY LOG</div>
@@ -3803,9 +3825,10 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
             <div style={{fontSize:10, color:"rgba(255,255,255,0.7)", marginTop:2}}>All outstanding actions across modules</div>
           </div>
         </div>
+        </div>
       </div>
 
-      <div style={{padding:"14px 16px"}}>
+      <div style={{padding:"14px 16px", maxWidth:isDesktop?800:480, margin:"0 auto"}}>
         {myTotalOpen===0 && (
           <div style={{textAlign:"center", padding:"48px 20px"}}>
             <div style={{fontSize:44}}>✓</div>
@@ -3865,6 +3888,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
     <div style={{background:C.bg, minHeight:"100vh", fontFamily:FONT}}>
       {/* Header */}
       <div style={{background:`linear-gradient(160deg,#FFFFFF,#EDEFF3)`, padding:"28px 16px 20px", borderBottom:`1px solid ${C.border}`}}>
+        <div style={{maxWidth:isDesktop?900:480, margin:"0 auto"}}>
         <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
           <div>
             <div style={{fontSize:10, color:TEAL, letterSpacing:4, fontWeight:800, marginBottom:4}}>SHAVE &amp; GIBSON</div>
@@ -3900,12 +3924,14 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
             )}
           </div>
         </button>
+        </div>
       </div>
 
       {/* Modules */}
       <div style={{padding:"18px 16px"}}>
+        <div style={{maxWidth:isDesktop?900:480, margin:"0 auto"}}>
         <div style={{fontSize:10, color:C.inkLight, letterSpacing:3, fontWeight:800, marginBottom:12}}>MODULES</div>
-        <div style={{display:"flex", flexDirection:"column", gap:10}}>
+        <div style={{display:"grid", gridTemplateColumns:isDesktop?"repeat(2,1fr)":"1fr", gap:10}}>
           {modules.map(mod=>(
             <button key={mod.id} onClick={()=>mod.status==="LIVE"&&onModule(mod.id)}
               style={{width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderLeft:`4px solid ${mod.color}`, borderRadius:16, padding:0, cursor:mod.status==="LIVE"?"pointer":"default", textAlign:"left", overflow:"hidden", fontFamily:FONT, display:"block", boxShadow:C.shadow}}>
@@ -3935,6 +3961,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:20}}>
           <button onClick={onLogout} style={{background:"none", border:`1px solid ${C.border}`, borderRadius:8, color:C.inkLight, padding:"7px 14px", fontSize:11, cursor:"pointer", fontFamily:FONT}}>Sign out</button>
           <div style={{fontSize:9, color:C.border, letterSpacing:2}}>S&amp;G OPSAPP · v1.0</div>
+        </div>
         </div>
       </div>
     </div>
