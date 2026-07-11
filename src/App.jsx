@@ -103,6 +103,17 @@ const C = {
   shadow:  "0 2px 12px rgba(30,32,37,0.08)",
 };
 
+// ── MODULE ACCESS ─────────────────────────────────────────
+const ACCESS_MODULES = [
+  { id:"5s",          label:"5S Housekeeping" },
+  { id:"gemba",       label:"Gemba Walks" },
+  { id:"maintenance", label:"Maintenance" },
+  { id:"quality",     label:"Quality Desk" },
+];
+// No moduleAccess field on a user = full access (safe default so existing
+// staff don't lose access the moment this ships) — admin can then restrict.
+const canSeeModule = (user, modId) => !user.moduleAccess || user.moduleAccess.includes(modId);
+
 // ── TEAM ──────────────────────────────────────────────────
 const SEED_USERS = [
   { id:"rajen",    name:"Rajen Padayachee",     dept:"Litho Print",          role:"Manager",    title:"Litho Print Manager",         initials:"RP", color:TEAL       },
@@ -3843,6 +3854,21 @@ function SystemAdminPage({ currentUser, onBack, onOpenInk, users, setUsers, issu
     setName(""); setDept(""); setRole("Manager"); setTitle("");
   };
 
+  // ── Module access ──────────────────────────────────────────
+  const [editingAccessId, setEditingAccessId] = useState(null);
+  const [editAccessSet,   setEditAccessSet]   = useState([]);
+  const openAccessEdit = u => { setEditingAccessId(u.id); setEditAccessSet(u.moduleAccess || ACCESS_MODULES.map(m=>m.id)); };
+  const closeAccessEdit = () => setEditingAccessId(null);
+  const toggleAccessModule = modId => setEditAccessSet(prev => prev.includes(modId) ? prev.filter(m=>m!==modId) : [...prev, modId]);
+  const saveAccessEdit = u => {
+    const updated = { ...u, moduleAccess: editAccessSet };
+    setUsers(prev => prev.map(x => x.id===u.id ? updated : x));
+    sbUpsert("app_users", { id:u.id, data:updated, created_at:new Date().toISOString() });
+    logAudit(currentUser.name, `Set module access for ${u.name} — ${editAccessSet.map(m=>ACCESS_MODULES.find(x=>x.id===m)?.label||m).join(", ")||"none"}`, "Admin");
+    showToast(`✓ ${u.name}'s access updated`);
+    closeAccessEdit();
+  };
+
   // ── Cross-module item helpers (Overview edit/delete/reopen) ──
   const MOD_TABLE   = { "5S":"issues", "Gemba":"gemba", "Maintenance":"jobcards", "Quality":"complaints" };
   const MOD_SETTER  = { "5S":setIssues, "Gemba":setGembaItems, "Maintenance":setJobCards, "Quality":setQualityItems };
@@ -4212,18 +4238,46 @@ function SystemAdminPage({ currentUser, onBack, onOpenInk, users, setUsers, issu
             </button>
           </div>
 
-          <SHead label={`ALL PEOPLE (${users.length})`}/>
+          <SHead label={`ALL PEOPLE (${users.length}) · TAP TO SET MODULE ACCESS`}/>
           <div style={{ display:"grid", gridTemplateColumns:gridCols(isDesktop), gap:8, alignItems:"start" }}>
-            {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=>(
-              <div key={u.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
-                <Av txt={u.initials} color={u.color} size={32}/>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:12, fontWeight:800, color:C.ink }}>{u.name} {u.isSystemAdmin && <span style={{fontSize:8,fontWeight:800,color:SYSADMIN,background:`${SYSADMIN}18`,padding:"1px 7px",borderRadius:100,marginLeft:4}}>SYSTEM ADMIN</span>}</div>
-                  <div style={{ fontSize:10, color:C.inkLight, marginTop:1 }}>{u.title} · {u.dept}</div>
+            {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=>{
+              const isOpen = editingAccessId===u.id;
+              const access = isOpen ? editAccessSet : (u.moduleAccess || ACCESS_MODULES.map(m=>m.id));
+              return (
+                <div key={u.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden" }}>
+                  <button onClick={()=> isOpen ? closeAccessEdit() : openAccessEdit(u)} style={{ width:"100%", background:"none", border:"none", cursor:"pointer", textAlign:"left", fontFamily:FONT, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+                    <Av txt={u.initials} color={u.color} size={32}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:800, color:C.ink }}>{u.name} {u.isSystemAdmin && <span style={{fontSize:8,fontWeight:800,color:SYSADMIN,background:`${SYSADMIN}18`,padding:"1px 7px",borderRadius:100,marginLeft:4}}>SYSTEM ADMIN</span>}</div>
+                      <div style={{ fontSize:10, color:C.inkLight, marginTop:1 }}>{u.title} · {u.dept}</div>
+                    </div>
+                    <div style={{ fontSize:9, color:C.inkMid, background:C.surfaceAlt, padding:"2px 8px", borderRadius:100 }}>{u.role}</div>
+                  </button>
+                  {isOpen && (
+                    <div style={{ borderTop:`1px solid ${C.border}`, background:C.surfaceAlt, padding:"12px 14px" }}>
+                      <FLabel text="MODULE ACCESS"/>
+                      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:12 }}>
+                        {ACCESS_MODULES.map(m=>{
+                          const on = access.includes(m.id);
+                          return (
+                            <button key={m.id} onClick={()=>toggleAccessModule(m.id)}
+                              style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 10px", borderRadius:8,
+                                border:`1.5px solid ${on?SYSADMIN:C.border}`, background:on?`${SYSADMIN}0F`:C.surface, cursor:"pointer", fontFamily:FONT }}>
+                              <span style={{ fontSize:12, fontWeight:700, color:C.ink }}>{m.label}</span>
+                              <span style={{ fontSize:10, fontWeight:800, color:on?SYSADMIN:C.inkLight }}>{on?"✓ ALLOWED":"BLOCKED"}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display:"flex", gap:8 }}>
+                        <button style={{...sx.solidBtn, background:SYSADMIN}} onClick={()=>saveAccessEdit(u)}>Save Access</button>
+                        <button style={sx.ghostBtn} onClick={closeAccessEdit}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize:9, color:C.inkMid, background:C.surfaceAlt, padding:"2px 8px", borderRadius:100 }}>{u.role}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -4258,10 +4312,11 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
     { id:"gemba",       Icon:PersonStanding,  label:"Gemba Walks",     desc:"Floor observations · Action tracking",   color:"#8B5CF6", status:"LIVE",        badge:myGembaOpen },
     { id:"maintenance", Icon:Wrench,          label:"Maintenance",     desc:"Job cards · Planned maintenance",         color:"#F59E0B", status:"LIVE",        badge:myMaintOpen },
     { id:"quality",     Icon:ShieldCheck,     label:"Quality Desk",    desc:"Complaints · Holds · CAPA",               color:"#10B981", status:"LIVE",        badge:myQualOpen  },
-    ...(currentUser.isSystemAdmin ? [
+  ].filter(m => canSeeModule(currentUser, m.id)).concat(
+    currentUser.isSystemAdmin ? [
       { id:"sysadmin",  Icon:Settings,        label:"System Admin",    desc:"Full visibility · People · Settings",     color:"#334155", status:"LIVE",        badge:0 },
-    ] : []),
-  ];
+    ] : []
+  );
 
   // MY LOG overlay
   if (showMyLog) return (
