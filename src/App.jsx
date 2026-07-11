@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import QRCode from "qrcode";
 import {
   ArrowLeft, Home as HomeIcon, AlertTriangle, ArrowRight, FileText, Clock, RefreshCw,
   Filter as FilterIcon, Folder, LayoutGrid, ClipboardList, Target, User as UserIcon,
   Sparkles, Camera, Paperclip, Footprints, Wrench, ClipboardCheck, PersonStanding, ShieldCheck,
   Settings, UserPlus, HelpCircle, Users as UsersIcon,
-  ScrollText, BarChart3, Trash2, Pencil, RotateCcw, X as XIcon,
+  ScrollText, BarChart3, Trash2, Pencil, RotateCcw, X as XIcon, QrCode, Printer,
 } from "lucide-react";
 
 // ── RESPONSIVE ────────────────────────────────────────────
@@ -364,6 +366,27 @@ function injectStyles() {
     .card:nth-child(3){animation-delay:.12s}
     .card:nth-child(4){animation-delay:.18s}
     button:active{transform:scale(0.97)}
+
+    #ink-qr-print-root{display:none}
+    @media print{
+      body > *:not(#ink-qr-print-root){display:none !important}
+      #ink-qr-print-root{display:block !important}
+    }
+    .ink-label-sheet{width:210mm;padding:8mm;display:grid;grid-template-columns:1fr 1fr;gap:6mm;background:#fff}
+    .ink-label{width:97mm;height:56mm;border:1px solid #ccc;border-radius:3mm;padding:4mm;display:flex;gap:3mm;
+      align-items:stretch;page-break-inside:avoid;box-sizing:border-box;overflow:hidden;font-family:'Nunito',sans-serif}
+    .ink-label-qr{width:38mm;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2mm}
+    .ink-label-qr img{width:34mm;height:34mm}
+    .ink-label-id{font-size:7pt;font-weight:700;letter-spacing:0.05em;color:#666;text-align:center}
+    .ink-label-info{flex:1;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+    .ink-label-name{font-size:11pt;font-weight:800;color:#1E2025;line-height:1.2;margin-bottom:2mm}
+    .ink-label-row{display:flex;justify-content:space-between;align-items:baseline;font-size:7pt;border-bottom:0.3mm solid #eee;padding:0.8mm 0}
+    .ink-label-row:last-child{border-bottom:none}
+    .ink-label-row .lk{color:#888;font-weight:500}
+    .ink-label-row .lv{font-weight:700;color:#1E2025;text-align:right;max-width:55mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ink-label-footer{margin-top:2mm;padding-top:1.5mm;border-top:0.5mm solid #1E2025;display:flex;justify-content:space-between;align-items:center}
+    .ink-label-footer .core{font-size:8pt;font-weight:800;letter-spacing:0.08em;color:#1E2025}
+    .ink-label-footer .shelf{font-size:10pt;font-weight:800;color:#0E7490}
   `;
   document.head.appendChild(el);
 }
@@ -3574,6 +3597,30 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
     showToast(`✓ ${item.id} added from scan — Shelf ${scanShelf}`);
   };
 
+  // ── QR label printing ──────────────────────────────────────
+  const [printQueue, setPrintQueue] = useState(null); // array of ink items, or null
+  const [printQrUrls, setPrintQrUrls] = useState({});  // id -> QR data URL
+
+  const printLabels = async list => {
+    if (!list.length) { showToast("⚠ No inks to print"); return; }
+    const urls = {};
+    await Promise.all(list.map(async ink => {
+      urls[ink.id] = await QRCode.toDataURL(`iMPi:${ink.id}:${ink.batch}:${encodeURIComponent(ink.name)}`, {
+        width:256, margin:1, color:{ dark:"#1E2025", light:"#FFFFFF" },
+      });
+    }));
+    setPrintQrUrls(urls);
+    setPrintQueue(list);
+  };
+  const handlePrintOne = ink => printLabels([ink]);
+  const handlePrintAll = () => printLabels(inkItems);
+
+  useEffect(() => {
+    if (!printQueue || !printQueue.every(i => printQrUrls[i.id])) return;
+    const t = setTimeout(() => { window.print(); setPrintQueue(null); }, 300);
+    return () => clearTimeout(t);
+  }, [printQueue, printQrUrls]);
+
   // search / filter
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
@@ -3623,6 +3670,7 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
   const TABS = [["inventory","Inventory"],["register","Register"],["jobs","Jobs"],["machines","Machines"],["reports","Reports"],["scan","AI Scan"],["press","Press"],["estimate","Estimator"]];
 
   return (
+    <>
     <Shell toast={toast} wide>
       <div style={{ background:C.surface, padding:"16px 16px 14px", borderBottom:`1px solid ${C.border}` }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
@@ -3736,6 +3784,10 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
 
               <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
                 <input style={{ ...sx.select, flex:1, minWidth:180 }} value={q} onChange={e=>setQ(e.target.value)} placeholder="Search colour, batch, customer, job, shelf…"/>
+                <button onClick={handlePrintAll} style={{ height:44, display:"flex", alignItems:"center", gap:6, padding:"0 14px", borderRadius:10,
+                  border:`1.5px solid ${INKC}`, background:"none", color:INKC, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
+                  <Printer size={14}/> Print All Labels
+                </button>
                 {[["all","All"],["ok","OK"],["warn","Warn"],["err","Issues"]].map(([f,label])=>(
                   <button key={f} onClick={()=>setFilter(f)} style={{ height:44, padding:"0 14px", borderRadius:10, border:`1.5px solid ${filter===f?INKC:C.border}`,
                     background:filter===f?INKC:C.surface, color:filter===f?"#fff":C.inkMid, fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:FONT }}>
@@ -3799,7 +3851,7 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                               <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={()=>{setIssuingId(ink.id);setReturningId(null);setConfirmDisposeId(null);}}>Issue</button>
                               <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={()=>{setReturningId(ink.id);setIssuingId(null);setConfirmDisposeId(null);}} disabled={!ink.atPress}>Return</button>
-                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={soon}>QR Label</button>
+                              <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11}} onClick={()=>handlePrintOne(ink)}>QR Label</button>
                               <button style={{...sx.ghostBtn, flex:"none", padding:"7px 12px", fontSize:11, color:C.open, borderColor:`${C.open}55`}} onClick={()=>{setConfirmDisposeId(ink.id);setIssuingId(null);setReturningId(null);}}>Dispose</button>
                             </div>
                           )}
@@ -3830,6 +3882,10 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
                     <span style={{ color:C.inkLight }}>{k}</span><span style={{ fontWeight:700, color:k==="At press"&&ink.atPress?INKC:C.ink }}>{v}</span>
                   </div>
                 ))}
+                <button onClick={()=>handlePrintOne(ink)} style={{ width:"100%", marginTop:10, display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  padding:"7px 0", borderRadius:8, border:`1px solid ${C.border}`, background:C.surfaceAlt, color:C.inkMid, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
+                  <QrCode size={13}/> Print QR Label
+                </button>
               </div>
             ))}
           </div>
@@ -4049,6 +4105,32 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
         </div>
       )}
     </Shell>
+    {printQueue && createPortal(
+      <div id="ink-qr-print-root">
+        <div className="ink-label-sheet">
+          {printQueue.map(ink => (
+            <div key={ink.id} className="ink-label">
+              <div className="ink-label-qr">
+                {printQrUrls[ink.id] && <img src={printQrUrls[ink.id]} alt=""/>}
+                <div className="ink-label-id">{ink.id} · {ink.batch}</div>
+              </div>
+              <div className="ink-label-info">
+                <div className="ink-label-name">{ink.name}</div>
+                {[["Customer",ink.customer],["Substrate",ink.substrate],["Batch No",ink.batch],["Qty",`${ink.qty} kg`],["Mfg Date",fmtInkDate(ink.mixed)],["Expiry",fmtInkDate(ink.expiry)]].map(([k,v])=>(
+                  <div key={k} className="ink-label-row"><span className="lk">{k}</span><span className="lv">{v||"—"}</span></div>
+                ))}
+                <div className="ink-label-footer">
+                  <span className="core">iMPi INK MANAGEMENT</span>
+                  <span className="shelf">Shelf: {ink.shelf||"—"}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 
