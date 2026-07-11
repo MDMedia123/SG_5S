@@ -2880,6 +2880,8 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
   const [owner,        setOwner]        = useState("");
   const [desc,         setDesc]         = useState("");
   const [saving,       setSaving]       = useState(false);
+  const [raiseStep,    setRaiseStep]    = useState(1);
+  const RAISE_STEPS = 4;
 
   // close-out
   const [rootCause,        setRootCause]        = useState("");
@@ -2909,6 +2911,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
       raisedBy:currentUser.name, raisedAt:now,
       owner, ownerName:m.name, ownerInit:m.initials, ownerColor:m.color,
       status:"OPEN", rootCause:"", correctiveAction:"", closeEvidence:null, comments:[],
+      isNCR:false, ncrUpgradedAt:null, ncrUpgradedBy:null,
       timeline:[
         { time:now, actor:currentUser.name, action:`Complaint logged — ${customerName}`, type:"raise" },
         { time:now, actor:currentUser.name, action:`Assigned to ${m.name}`, type:"update" },
@@ -2919,7 +2922,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     logAudit(currentUser.name, `Logged complaint ${item.id} — ${customerName}`, "Quality");
     setSaving(false);
     showToast(`✓ ${item.id} logged — ${m.name} notified`);
-    setCustomerName(""); setProduct(""); setDepartment(""); setCategory(""); setPriority("MEDIUM"); setOwner(""); setDesc("");
+    setCustomerName(""); setProduct(""); setDepartment(""); setCategory(""); setPriority("MEDIUM"); setOwner(""); setDesc(""); setRaiseStep(1);
     setTimeout(() => setTab("board"), 500);
   };
 
@@ -2941,6 +2944,16 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     };
     persist(updated, "closed");
     showToast(`✓ ${selected.id} closed`);
+  };
+
+  const upgradeToNCR = () => {
+    const now = new Date().toISOString().slice(0,16).replace("T"," ");
+    const updated = {
+      ...selected, isNCR:true, ncrUpgradedAt:now, ncrUpgradedBy:currentUser.name,
+      timeline:[...selected.timeline, { time:now, actor:currentUser.name, action:"Upgraded to NCR — flagged for formal Non-Conformance Report", type:"update" }],
+    };
+    persist(updated, "upgraded to NCR");
+    showToast(`✓ ${selected.id} upgraded to NCR`);
   };
 
   const postComment = () => {
@@ -2968,8 +2981,15 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
             <div style={{marginLeft:"auto",background:C.surfaceAlt,borderRadius:100,padding:"3px 14px",fontSize:12,fontWeight:900,color:C.inkMid,fontFamily:MONO}}>{s.id}</div>
           </div>
           <div style={{padding:"14px 16px 18px"}}>
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:c.bg,borderRadius:100,padding:"4px 12px",marginBottom:9}}>
-              <Folder size={13} color={c.color}/><span style={{fontSize:11,fontWeight:800,color:c.color}}>{c.label}</span>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:9}}>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,background:c.bg,borderRadius:100,padding:"4px 12px"}}>
+                <Folder size={13} color={c.color}/><span style={{fontSize:11,fontWeight:800,color:c.color}}>{c.label}</span>
+              </div>
+              {s.isNCR && (
+                <div style={{display:"inline-flex",alignItems:"center",gap:5,background:"#9333EA18",borderRadius:100,padding:"4px 12px"}}>
+                  <AlertTriangle size={13} color="#9333EA"/><span style={{fontSize:11,fontWeight:800,color:"#9333EA"}}>NCR</span>
+                </div>
+              )}
             </div>
             <div style={{fontSize:19,fontWeight:900,color:C.ink,marginBottom:5}}>{s.customerName}</div>
             <div style={{fontSize:12,color:C.inkMid}}>{s.product}</div>
@@ -3024,6 +3044,11 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
               {s.status==="OPEN" && (
                 <button style={{...sx.solidBtn,width:"100%",marginBottom:12,background:`linear-gradient(135deg,${C.prog},#FCD34D)`}} onClick={()=>updateStatus("IN PROGRESS")}>Acknowledge — Start Investigation</button>
               )}
+              {!s.isNCR && (
+                <button style={{...sx.ghostBtn,width:"100%",marginBottom:12,color:"#9333EA",borderColor:"#9333EA55"}} onClick={upgradeToNCR}>
+                  <span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><AlertTriangle size={14}/> Upgrade to NCR</span>
+                </button>
+              )}
               <FLabel text="ROOT CAUSE"/>
               <textarea style={{...sx.textarea,marginBottom:10}} rows={2} value={rootCause} onChange={e=>setRootCause(e.target.value)} placeholder="What caused this?"/>
               <FLabel text="CORRECTIVE ACTION (CAPA)"/>
@@ -3044,53 +3069,96 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
     );
   }
 
-  // ── Raise view ───────────────────────────────────────────
+  // ── Raise view (short step-by-step questionnaire) ─────────
+  const raiseStepValid = {
+    1: !!customerName,
+    2: !!department && !!category,
+    3: !!owner,
+    4: !!desc,
+  }[raiseStep];
+  const raiseStepTitle = {
+    1: "WHO'S THE COMPLAINT FROM?",
+    2: "WHERE DID IT HAPPEN?",
+    3: "HOW URGENT — AND WHO OWNS IT?",
+    4: "WHAT HAPPENED?",
+  }[raiseStep];
+
   if (tab==="raise") return (
     <Shell toast={toast}>
       <div style={{background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,padding:"14px 16px 16px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button style={sx.backBtnW} onClick={()=>setTab("board")}>← Back</button>
-          <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>LOG COMPLAINT</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <button style={sx.backBtnW} onClick={()=>raiseStep>1 ? setRaiseStep(raiseStep-1) : setTab("board")}>← Back</button>
+          <div style={{fontSize:14,fontWeight:900,color:"#fff",letterSpacing:2}}>RAISE QUALITY ALERT</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{display:"flex",gap:4,flex:1}}>
+            {[1,2,3,4].map(n=>(
+              <div key={n} style={{flex:1,height:4,borderRadius:2,background:n<=raiseStep?"#fff":"rgba(255,255,255,0.3)"}}/>
+            ))}
+          </div>
+          <span style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.85)",letterSpacing:1,whiteSpace:"nowrap"}}>STEP {raiseStep} OF {RAISE_STEPS}</span>
         </div>
       </div>
       <div style={{padding:"14px 16px"}}>
-        <FLabel text="CUSTOMER NAME"/>
-        <input style={{...sx.select,marginBottom:4}} value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="e.g. Acme Retail Group"/>
-        <FLabel text="PRODUCT / BATCH"/>
-        <input style={{...sx.select,marginBottom:4}} value={product} onChange={e=>setProduct(e.target.value)} placeholder="e.g. 500ml shipper — batch B4521"/>
-        <FLabel text="DEPARTMENT"/>
-        <select style={{...sx.select,marginBottom:4}} value={department} onChange={e=>setDepartment(e.target.value)}>
-          <option value="">— Select department —</option>
-          {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
-        </select>
-        <FLabel text="CATEGORY"/>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-          {QUAL_CATS.map(c=>(
-            <button key={c.key} onClick={()=>setCategory(c.key)}
-              style={{flex:"1 1 30%",padding:"8px 4px",background:category===c.key?c.color:C.surfaceAlt,border:`1.5px solid ${category===c.key?c.color:C.border}`,borderRadius:10,cursor:"pointer"}}>
-              <span style={{fontSize:9,fontWeight:800,color:category===c.key?"#fff":c.color}}>{c.label}</span>
-            </button>
-          ))}
-        </div>
-        <FLabel text="PRIORITY"/>
-        <div style={{display:"flex",gap:8,marginBottom:8}}>
-          {["LOW","MEDIUM","HIGH","CRITICAL"].map(p=>(
-            <button key={p} onClick={()=>setPriority(p)}
-              style={{flex:1,padding:"9px 4px",borderRadius:9,border:`1.5px solid ${qualPriColor(p)}`,background:priority===p?`linear-gradient(135deg,${qualPriColor(p)},${qualPriColor(p)}aa)`:"transparent",color:priority===p?"#fff":qualPriColor(p),fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>
-              {p}
-            </button>
-          ))}
-        </div>
-        <FLabel text="ASSIGN OWNER"/>
-        <select style={{...sx.select,marginBottom:4}} value={owner} onChange={e=>setOwner(e.target.value)}>
-          <option value="">— Select owner —</option>
-          {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
-        <FLabel text="COMPLAINT DETAIL"/>
-        <textarea style={{...sx.textarea,marginBottom:10}} rows={3} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the customer's complaint…"/>
-        <button style={{width:"100%",padding:"14px",background:customerName&&department&&category&&owner&&desc?`linear-gradient(135deg,${TEAL},${C.tealDk})`:C.surfaceAlt,border:"none",borderRadius:11,color:customerName&&department&&category&&owner&&desc?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
-          onClick={handleRaise} disabled={saving}>
-          ✅ Log Complaint &amp; Notify Owner
+        <div style={{fontSize:13,fontWeight:800,color:C.ink,marginBottom:14}}>{raiseStepTitle}</div>
+
+        {raiseStep===1 && (
+          <>
+            <FLabel text="CUSTOMER NAME"/>
+            <input style={{...sx.select,marginBottom:12}} value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="e.g. Acme Retail Group"/>
+            <FLabel text="PRODUCT / BATCH"/>
+            <input style={{...sx.select,marginBottom:4}} value={product} onChange={e=>setProduct(e.target.value)} placeholder="e.g. 500ml shipper — batch B4521"/>
+          </>
+        )}
+
+        {raiseStep===2 && (
+          <>
+            <FLabel text="DEPARTMENT"/>
+            <select style={{...sx.select,marginBottom:12}} value={department} onChange={e=>setDepartment(e.target.value)}>
+              <option value="">— Select department —</option>
+              {DEPARTMENTS.map(d=><option key={d}>{d}</option>)}
+            </select>
+            <FLabel text="CATEGORY"/>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:4}}>
+              {QUAL_CATS.map(c=>(
+                <button key={c.key} onClick={()=>setCategory(c.key)}
+                  style={{flex:"1 1 30%",padding:"8px 4px",background:category===c.key?c.color:C.surfaceAlt,border:`1.5px solid ${category===c.key?c.color:C.border}`,borderRadius:10,cursor:"pointer"}}>
+                  <span style={{fontSize:9,fontWeight:800,color:category===c.key?"#fff":c.color}}>{c.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {raiseStep===3 && (
+          <>
+            <FLabel text="PRIORITY"/>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              {["LOW","MEDIUM","HIGH","CRITICAL"].map(p=>(
+                <button key={p} onClick={()=>setPriority(p)}
+                  style={{flex:1,padding:"9px 4px",borderRadius:9,border:`1.5px solid ${qualPriColor(p)}`,background:priority===p?`linear-gradient(135deg,${qualPriColor(p)},${qualPriColor(p)}aa)`:"transparent",color:priority===p?"#fff":qualPriColor(p),fontSize:10,fontWeight:800,cursor:"pointer",fontFamily:FONT}}>
+                  {p}
+                </button>
+              ))}
+            </div>
+            <FLabel text="ASSIGN OWNER"/>
+            <select style={{...sx.select,marginBottom:4}} value={owner} onChange={e=>setOwner(e.target.value)}>
+              <option value="">— Select owner —</option>
+              {[...users].sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </>
+        )}
+
+        {raiseStep===4 && (
+          <>
+            <FLabel text="COMPLAINT DETAIL"/>
+            <textarea style={{...sx.textarea,marginBottom:4}} rows={4} value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the customer's complaint…"/>
+          </>
+        )}
+
+        <button style={{width:"100%",padding:"14px",marginTop:14,background:raiseStepValid?`linear-gradient(135deg,${TEAL},${C.tealDk})`:C.surfaceAlt,border:"none",borderRadius:11,color:raiseStepValid?"#fff":C.inkLight,fontSize:14,fontWeight:800,letterSpacing:1,fontFamily:FONT,cursor:"pointer",opacity:saving?0.65:1}}
+          onClick={()=> raiseStep<RAISE_STEPS ? setRaiseStep(raiseStep+1) : handleRaise()} disabled={!raiseStepValid||saving}>
+          {raiseStep<RAISE_STEPS ? "Next →" : "✅ Raise Quality Alert & Notify Owner"}
         </button>
       </div>
     </Shell>
@@ -3133,9 +3201,9 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
         <div style={{background:`${C.prog}12`, border:`1px solid ${C.prog}33`, borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:11, color:C.inkMid, lineHeight:1.5}}>
           Pilot feature — findings logged here are reviewed and actioned in the main NCR system (Quality Desk) separately.
         </div>
-        <button style={{width:"100%",background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:`0 6px 24px ${TEAL}33`,textAlign:"left"}} onClick={()=>setTab("raise")}>
+        <button style={{width:"100%",background:`linear-gradient(135deg,${TEAL},${C.tealDk})`,border:"none",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:`0 6px 24px ${TEAL}33`,textAlign:"left"}} onClick={()=>{setRaiseStep(1);setTab("raise");}}>
           <div style={{width:40,height:40,borderRadius:10,background:"rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center"}}><ShieldCheck size={20} color="#fff"/></div>
-          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>LOG COMPLAINT</div><div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2}}>Customer · Product · Assign owner · CAPA</div></div>
+          <div><div style={{fontSize:13,fontWeight:800,color:"#fff"}}>RAISE QUALITY ALERT</div><div style={{fontSize:10,color:"rgba(255,255,255,0.8)",marginTop:2}}>Short questionnaire · Customer · Product · Owner</div></div>
           <ArrowRight size={16} color="rgba(255,255,255,0.8)" style={{marginLeft:"auto"}}/>
         </button>
       </div>
@@ -3214,6 +3282,7 @@ function QualityDeskPage({ currentUser, onBack, items, setItems, users }) {
                     <div style={{background:c.bg,color:c.color,fontSize:10,fontWeight:800,padding:"2px 9px",borderRadius:100}}>{c.label}</div>
                     <div style={{background:`${qualPriColor(item.priority)}18`,color:qualPriColor(item.priority),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.priority}</div>
                     <div style={{background:statBg(item.status),color:statColor(item.status),fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>{item.status}</div>
+                    {item.isNCR && <div style={{background:"#9333EA18",color:"#9333EA",fontSize:9,fontWeight:800,padding:"2px 8px",borderRadius:100}}>NCR</div>}
                     {isOwner&&<div style={{background:`${currentUser.color}18`,color:currentUser.color,fontSize:8,fontWeight:800,padding:"2px 7px",borderRadius:100}}>MINE</div>}
                     <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                       <span style={{fontSize:10,color:C.inkLight,fontFamily:MONO}}>{item.id}</span>
