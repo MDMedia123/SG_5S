@@ -3526,7 +3526,7 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
           <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:C.surface,
             border:`1px solid ${C.border}`, borderRadius:10, color:C.ink, padding:"8px 12px",
             fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:FONT }}>
-            <HomeIcon size={14}/> Admin
+            <HomeIcon size={14}/> Home
           </button>
         </div>
         <div style={{ display:"flex", gap:14, overflowX:"auto" }}>
@@ -3822,7 +3822,7 @@ function InkManagementPage({ currentUser, onBack, inkItems, setInkItems }) {
 const SYSADMIN = "#334155";
 const ROLES = ["Manager","Supervisor","Auditor","Admin"];
 
-function SystemAdminPage({ currentUser, onBack, onOpenInk, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
+function SystemAdminPage({ currentUser, onBack, users, setUsers, issues, setIssues, gembaItems, setGembaItems, jobCards, setJobCards, qualityItems, setQualityItems }) {
   const isDesktop = useIsDesktop();
   const [tab,   setTab]   = useState("overview");
   const [toast, setToast] = useState("");
@@ -4025,8 +4025,8 @@ function SystemAdminPage({ currentUser, onBack, onOpenInk, users, setUsers, issu
         </div>
 
         <div style={{ display:"flex", gap:14, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-          {[["overview","Overview"],["people","People"],["reports","Reports"],["auditlog","Audit Log"],["inkmgmt","Ink Mgmt"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
-            <button key={t} onClick={()=> t==="inkmgmt" ? onOpenInk() : ["overview","people","reports","auditlog"].includes(t) ? setTab(t) : soon()}
+          {[["overview","Overview"],["people","People"],["reports","Reports"],["auditlog","Audit Log"],["questions","Questions"],["admins","Admins"]].map(([t,label])=>(
+            <button key={t} onClick={()=> ["overview","people","reports","auditlog"].includes(t) ? setTab(t) : soon()}
               style={{ background:"none", border:"none",
                 borderBottom:`2px solid ${tab===t?SYSADMIN:"transparent"}`,
                 color:tab===t?SYSADMIN:C.inkLight, fontSize:12, fontWeight:700, whiteSpace:"nowrap",
@@ -4315,6 +4315,7 @@ function FPAHome({ currentUser, onLogout, onModule, issues, gembaItems, jobCards
   ].filter(m => canSeeModule(currentUser, m.id)).concat(
     currentUser.isSystemAdmin ? [
       { id:"sysadmin",  Icon:Settings,        label:"System Admin",    desc:"Full visibility · People · Settings",     color:"#334155", status:"LIVE",        badge:0 },
+      { id:"inkmgmt",   Icon:Paperclip,       label:"Ink Management",  desc:"Inventory · Press · Estimator (pilot)",   color:INKC,      status:"LIVE",        badge:0 },
     ] : []
   );
 
@@ -4529,7 +4530,6 @@ export default function App() {
     <SystemAdminPage
       currentUser={currentUser}
       onBack={()=>setModule(null)}
-      onOpenInk={()=>setModule("inkmgmt")}
       users={users}
       setUsers={setUsers}
       issues={issues}
@@ -4545,7 +4545,7 @@ export default function App() {
   if (module === "inkmgmt")     return (
     <InkManagementPage
       currentUser={currentUser}
-      onBack={()=>setModule("sysadmin")}
+      onBack={()=>setModule(null)}
       inkItems={inkItems}
       setInkItems={setInkItems}
     />
