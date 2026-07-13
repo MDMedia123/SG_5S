@@ -307,12 +307,19 @@ const SEED_AUDITS = {
 };
 
 // ── AI CALLS ──────────────────────────────────────────────
+// Shares the same key as Ink Management's AI Scan (set once, works everywhere).
+function getAiKey() {
+  return (typeof window !== "undefined" && localStorage.getItem("core_api_key")) || "";
+}
+
 async function callAI(desc, catLabel, dept, manager) {
+  const key = getAiKey();
+  if (!key) return "";
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
+      method:"POST", headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
       body: JSON.stringify({
-        model:"claude-sonnet-4-20250514", max_tokens:600,
+        model:"claude-sonnet-5", max_tokens:600,
         messages:[{ role:"user", content:
           `You are the 5S Compliance Authority for Gibson Packaging. Write a formal compliance notification (3 sentences) for this finding:
 Department: ${dept} | Manager: ${manager} | 5S Category: ${catLabel} | Finding: "${desc}"
@@ -326,6 +333,8 @@ Include: 5S category breach with Japanese name, a Gibson standard reference (e.g
 }
 
 async function classifyFinding(desc, dept, imgB64) {
+  const key = getAiKey();
+  if (!key) return null;
   const stdList = STDS.map(s => `${s.code}|${s.title}|${s.scat}|${s.status}`).join("\n");
   const prompt = `You are the AI Compliance Engine for Gibson Packaging.
 Finding: "${desc}" in department: ${dept || "unknown"}
@@ -339,8 +348,8 @@ Reply ONLY with valid JSON (no markdown):
       ? [{ type:"image", source:{ type:"base64", media_type:"image/jpeg", data: imgB64.replace(/^data:image\/\w+;base64,/,"") }}, { type:"text", text:prompt }]
       : [{ type:"text", text:prompt }];
     const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:600, messages:[{ role:"user", content }] })
+      method:"POST", headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+      body: JSON.stringify({ model:"claude-sonnet-5", max_tokens:600, messages:[{ role:"user", content }] })
     });
     const d = await res.json();
     const text = (d.content?.[0]?.text || "").trim();
@@ -1199,52 +1208,61 @@ function MainApp({ currentUser, onLogout, auditAnswers, setAuditAnswers, onHome,
                   </div>
                 </div>
               )}
-
-              {/* Category override */}
-              <div>
-                <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2,
-                  fontWeight:800, marginBottom:5 }}>
-                  5S CATEGORY <span style={{ color:C.teal }}>(AI selected — tap to override)</span></div>
-                <div style={{ display:"flex", gap:5 }}>
-                  {SCATS.map(c => (
-                    <button key={c.key} onClick={() => setScat(c.key)}
-                      style={{ flex:1, display:"flex", flexDirection:"column",
-                        alignItems:"center", gap:2, padding:"7px 3px",
-                        background:(scat||engineResult?.scat)===c.key?c.grad:C.surfaceAlt,
-                        border:`1.5px solid ${(scat||engineResult?.scat)===c.key?c.color:C.border}`,
-                        borderRadius:9, cursor:"pointer" }}>
-                      <span style={{ fontSize:13, color:(scat||engineResult?.scat)===c.key?"#fff":c.color }}>
-                        {c.icon}</span>
-                      <span style={{ fontSize:9, fontWeight:800,
-                        color:(scat||engineResult?.scat)===c.key?"#fff":c.color }}>{c.short}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
-          {/* Submit */}
-          <button style={{
-            width:"100%", marginTop:8, padding:"14px", border:"none", borderRadius:11,
-            color:engineResult?"#fff":C.inkLight, fontSize:14, fontWeight:800,
-            letterSpacing:1, fontFamily:FONT,
-            background:engineResult
-              ? (hasStd ? `linear-gradient(135deg,${engineBand?.color||TEAL},${engineBand?.color||TEAL}aa)`
-                       : `linear-gradient(135deg,${C.prog},#FCD34D)`)
-              : C.surfaceAlt,
-            cursor:engineResult&&!genning?"pointer":"default",
-            opacity:genning?0.65:1,
-            display:"flex", alignItems:"center", justifyContent:"center", gap:8
-          }} onClick={handleRaise} disabled={!engineResult||genning}>
-            {genning
+          {/* Category override — always available, not dependent on the AI engine */}
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:9, color:C.inkLight, letterSpacing:2,
+              fontWeight:800, marginBottom:5 }}>
+              5S CATEGORY {engineResult?.scat ? <span style={{ color:C.teal }}>(AI selected — tap to override)</span> : <span style={{ color:C.inkLight }}>(select manually)</span>}</div>
+            <div style={{ display:"flex", gap:5 }}>
+              {SCATS.map(c => (
+                <button key={c.key} onClick={() => setScat(c.key)}
+                  style={{ flex:1, display:"flex", flexDirection:"column",
+                    alignItems:"center", gap:2, padding:"7px 3px",
+                    background:(scat||engineResult?.scat)===c.key?c.grad:C.surfaceAlt,
+                    border:`1.5px solid ${(scat||engineResult?.scat)===c.key?c.color:C.border}`,
+                    borderRadius:9, cursor:"pointer" }}>
+                  <span style={{ fontSize:13, color:(scat||engineResult?.scat)===c.key?"#fff":c.color }}>
+                    {c.icon}</span>
+                  <span style={{ fontSize:9, fontWeight:800,
+                    color:(scat||engineResult?.scat)===c.key?"#fff":c.color }}>{c.short}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Submit — only requires description, department & manager; AI classification is a bonus, not a gate */}
+          {(() => {
+            const canSubmit = !!(desc && dept && mgr) && !genning;
+            const label = genning
               ? <><span style={{ animation:"spin 1s linear infinite", display:"inline-block" }}>⚙</span> Creating record…</>
-              : engineResult
-                ? (hasStd ? (engineScore >= 61 ? `⚡ Submit Finding → Generate ${engineBand?.label||"Major"} NCR` : `⚡ Submit ${engineBand?.label||"Finding"} — No NCR Required`) 
-                          : "📋 Log Observation — No NCR Generated")
-                : "Describe finding above to activate engine"
-            }
-          </button>
+              : !desc || !dept || !mgr
+                ? "Complete description, department & manager"
+                : engineResult
+                  ? (hasStd ? (engineScore >= 61 ? `⚡ Submit Finding → Generate ${engineBand?.label||"Major"} NCR` : `⚡ Submit ${engineBand?.label||"Finding"} — No NCR Required`)
+                            : "📋 Log Observation — No NCR Generated")
+                  : "📋 Log Finding — Manual Entry";
+            return (
+              <button style={{
+                width:"100%", marginTop:8, padding:"14px", border:"none", borderRadius:11,
+                color:canSubmit?"#fff":C.inkLight, fontSize:14, fontWeight:800,
+                letterSpacing:1, fontFamily:FONT,
+                background:canSubmit
+                  ? (engineResult
+                      ? (hasStd ? `linear-gradient(135deg,${engineBand?.color||TEAL},${engineBand?.color||TEAL}aa)`
+                               : `linear-gradient(135deg,${C.prog},#FCD34D)`)
+                      : `linear-gradient(135deg,${TEAL},${C.tealDk})`)
+                  : C.surfaceAlt,
+                cursor:canSubmit?"pointer":"default",
+                opacity:genning?0.65:1,
+                display:"flex", alignItems:"center", justifyContent:"center", gap:8
+              }} onClick={handleRaise} disabled={!canSubmit}>
+                {label}
+              </button>
+            );
+          })()}
         </div>
       </Shell>
     );
@@ -1928,11 +1946,13 @@ const SEED_GEMBA = [
 ];
 
 async function gembaAI(desc, category, area, owner) {
+  const key = getAiKey();
+  if (!key) return "";
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
+      method:"POST", headers:{ "Content-Type":"application/json", "x-api-key":key, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
       body: JSON.stringify({
-        model:"claude-sonnet-4-20250514", max_tokens:400,
+        model:"claude-sonnet-5", max_tokens:400,
         messages:[{ role:"user", content:
           `You are a factory floor operations manager at Gibson Packaging. During a Gemba walk the following was observed:
 Area: ${area} | Category: ${category} | Owner: ${owner} | Observation: "${desc}"
